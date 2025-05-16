@@ -40,8 +40,8 @@ appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
 publish:
-  provider: generic
-  repo: username/workspace-mail
+  provider: "github"
+  repo: lkavindu199/workspace-mail
   releaseType: draft
   url: https://example.com/auto-updates
 electronDownload:
