@@ -77,7 +77,7 @@
         "mailto"
       ]
     },
-    "publish":  null,
+    "publish": null,
     "files": [
       "out",
       "node_modules",
@@ -93,8 +93,15 @@
     },
     "win": {
       "icon": "icon.ico",
-      "target": "nsis",
-      "arch": ["x64", "ia32"]
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
+      ]
     },
     "linux": {
       "icon": "icon.png",
