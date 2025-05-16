@@ -105,7 +105,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: mac-node-${{ hashFiles('/package-lock.json') }}
+          key: mac-node-${{ hashFiles('package-lock.json') }}
           restore-keys: |
             mac-node-
 
@@ -113,6 +113,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Ensure Python 3 distutils is available
+        run: |
+          python3 -m pip install --upgrade pip setuptools
 
       - name: Install Dependencies
         run: npm install --prefer-offline --legacy-peer-deps
