@@ -1,148 +1,13 @@
-# name: Build And Release
-# on:
-#   push:
-#     tags:
-#       - 'v*'
-#     pull_request:
-#       types: [review_requested]
-# jobs:
-#   build_on_windows:
-#     runs-on: windows-latest
-#     permissions:
-#       contents: write
-#       packages: write
-#     steps:
-#       - name: Checkout repository
-#         uses: actions/checkout@v4
-
-#       - name: Cache Node.js dependencies
-#         uses: actions/cache@v4
-#         with:
-#           path: ~/.npm
-#           key: windows-node-${{ hashFiles('package-lock.json') }}
-#           restore-keys: |
-#             windows-node-
-
-#       - name: Setup Node.js 20
-#         uses: actions/setup-node@v4
-#         with:
-#           node-version: '20'
-
-#       - name: Install Dependencies
-#         run: npm install --prefer-offline --legacy-peer-deps
-
-#       - name: Build
-#         run: npm run build:win
-
-#       - name: List release folder
-#         run: dir dist/
-
-#       - name: Create GitHub Release
-#         uses: softprops/action-gh-release@v1
-#         id: create_release
-#         with:
-#           name: ${{ github.ref_name }}
-#           tag_name: ${{ github.ref_name }}
-#           draft: true
-#         env:
-#           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-
-#       - name: Upload Release Artifacts
-#         uses: softprops/action-gh-release@v1
-#         with:
-#           files: |
-#             dist/*.exe
-#             dist/*.msi
-#             dist/*.appx
-#         env:
-#           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-
-#   # build_on_ubuntu:
-#   #   runs-on: ubuntu-latest
-#   #   steps:
-#   #     - name: Checkout repository
-#   #       uses: actions/checkout@v4
-
-#   #     - name: Cache Node.js dependencies
-#   #       uses: actions/cache@v4
-#   #       with:
-#   #         path: ~/.npm
-#   #         key: ubuntu-node-${{ hashFiles('/package-lock.json') }}
-#   #         restore-keys: |
-#   #           ubuntu-node-
-
-#   #     - name: Setup Node.js
-#   #       uses: actions/setup-node@v4
-#   #       with:
-#   #         node-version: '20'
-
-#   #     - name: Install Dependencies
-#   #       run: npm install --prefer-offline --legacy-peer-deps
-
-#   #     - name: Build the Package
-#   #       run: npm run build:linux
-
-#   #     - name: List release folder
-#   #       run: ls -la dist/
-
-#   #     - name: Upload Ubuntu Release Artifacts
-#   #       uses: softprops/action-gh-release@v1
-#   #       with:
-#   #         files: |
-#   #           dist/*.deb
-#   #           dist/*.snap
-#   #           dist/*.AppImage
-#   #       env:
-#   #         GH_TOKEN: ${{ secrets.GH_TOKEN }}
-
-#   # build_on_mac:
-#   #   runs-on: macOS-latest
-#   #   steps:
-#   #     - name: Checkout repository
-#   #       uses: actions/checkout@v4
-
-#   #     - name: Cache Node.js dependencies
-#   #       uses: actions/cache@v4
-#   #       with:
-#   #         path: ~/.npm
-#   #         key: mac-node-${{ hashFiles('/package-lock.json') }}
-#   #         restore-keys: |
-#   #           mac-node-
-
-#   #     - name: Setup Node.js
-#   #       uses: actions/setup-node@v4
-#   #       with:
-#   #         node-version: '20'
-
-#   #     - name: Install Dependencies
-#   #       run: npm install --prefer-offline --legacy-peer-deps
-
-#   #     - name: Build the Package
-#   #       run: npm run build:mac
-
-#   #     - name: List release folder
-#   #       run: ls -la dist/
-
-#   #     - name: Upload macOS Release Artifacts
-#   #       uses: softprops/action-gh-release@v1
-#   #       with:
-#   #         files: |
-#   #           dist/*.dmg
-#   #       env:
-#   #         GH_TOKEN: ${{ secrets.GH_TOKEN }}
-
 name: Build And Release
 on:
   push:
     tags:
       - 'v*'
-
+    pull_request:
+      types: [review_requested]
 jobs:
-  build:
-    strategy:
-      matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+  build_on_windows:
+    runs-on: windows-latest
     permissions:
       contents: write
       packages: write
@@ -154,9 +19,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: ${{ matrix.os }}-node-${{ hashFiles('package-lock.json') }}
+          key: windows-node-${{ hashFiles('package-lock.json') }}
           restore-keys: |
-            ${{ matrix.os }}-node-
+            windows-node-
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
@@ -167,30 +32,101 @@ jobs:
         run: npm install --prefer-offline --legacy-peer-deps
 
       - name: Build
-        run: |
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            npm run build:win
-          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            npm run build:mac
-          else
-            npm run build:linux
-          fi
+        run: npm run build:win
 
-      - name: List artifacts
-        run: |
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            dir dist/
-          else
-            ls -la dist/
-          fi
+      - name: List release folder
+        run: dir dist/
 
-      - name: Upload artifacts
-        if: github.ref_type == 'tag'
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        id: create_release
+        with:
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          draft: true
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      - name: Upload Release Artifacts
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            dist/*
-          draft: false
-          replace_assets: true
+            dist/*.exe
+            dist/*.msi
+            dist/*.appx
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+  # build_on_ubuntu:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+
+  #     - name: Cache Node.js dependencies
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: ~/.npm
+  #         key: ubuntu-node-${{ hashFiles('/package-lock.json') }}
+  #         restore-keys: |
+  #           ubuntu-node-
+
+  #     - name: Setup Node.js
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '20'
+
+  #     - name: Install Dependencies
+  #       run: npm install --prefer-offline --legacy-peer-deps
+
+  #     - name: Build the Package
+  #       run: npm run build:linux
+
+  #     - name: List release folder
+  #       run: ls -la dist/
+
+  #     - name: Upload Ubuntu Release Artifacts
+  #       uses: softprops/action-gh-release@v1
+  #       with:
+  #         files: |
+  #           dist/*.deb
+  #           dist/*.snap
+  #           dist/*.AppImage
+  #       env:
+  #         GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+  build_on_mac:
+    runs-on: macOS-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cache Node.js dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: mac-node-${{ hashFiles('/package-lock.json') }}
+          restore-keys: |
+            mac-node-
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: npm install --prefer-offline --legacy-peer-deps
+
+      - name: Build the Package
+        run: npm run build:mac
+
+      - name: List release folder
+        run: ls -la dist/
+
+      - name: Upload macOS Release Artifacts
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/*.dmg
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
