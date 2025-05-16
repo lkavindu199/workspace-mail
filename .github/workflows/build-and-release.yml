@@ -81,8 +81,9 @@ jobs:
 
     - name: Install build dependencies
       run: |
+        sudo dpkg --add-architecture i386
         sudo apt-get update
-        sudo apt-get install -y build-essential g++ libstdc++-13-dev
+        sudo apt-get install -y build-essential g++ libstdc++-13-dev g++-multilib g++-13-multilib
 
     - name: Install Dependencies
       run: npm install --prefer-offline --legacy-peer-deps
