@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "streetsidesoftware.code-spell-checker",
+    "naumovs.color-highlight",
+    "editorconfig.editorconfig",
+    "nucllear.vscode-extension-auto-import",
+    "eamodio.gitlens",
+    "shd101wyy.markdown-preview-enhanced",
+    "esbenp.prettier-vscode",
+    "gruntfuggly.todo-tree"
+  ]
+}
