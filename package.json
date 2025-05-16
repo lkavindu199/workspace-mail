@@ -89,7 +89,22 @@
     "mac": {
       "icon": "icon.icns",
       "category": "Email",
-      "target": "dmg"
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
     },
     "win": {
       "icon": "icon.ico",
@@ -100,13 +115,48 @@
             "x64",
             "ia32"
           ]
+        },
+        {
+          "target": "msi",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
         }
       ]
     },
     "linux": {
       "icon": "icon.png",
       "category": "Email",
-      "target": "AppImage"
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64",
+            "ia32",
+            "armv7l",
+            "arm64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64",
+            "ia32",
+            "armv7l",
+            "arm64"
+          ]
+        },
+        {
+          "target": "rpm",
+          "arch": [
+            "x64",
+            "ia32",
+            "armv7l",
+            "arm64"
+          ]
+        }
+      ]
     }
   }
 }
