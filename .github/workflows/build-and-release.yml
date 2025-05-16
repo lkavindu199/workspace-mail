@@ -6,56 +6,56 @@ on:
     pull_request:
       types: [review_requested]
 jobs:
-  build_on_windows:
-    runs-on: windows-latest
-    permissions:
-      contents: write
-      packages: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+  # build_on_windows:
+  #   runs-on: windows-latest
+  #   permissions:
+  #     contents: write
+  #     packages: write
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
 
-      - name: Cache Node.js dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: windows-node-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            windows-node-
+  #     - name: Cache Node.js dependencies
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: ~/.npm
+  #         key: windows-node-${{ hashFiles('package-lock.json') }}
+  #         restore-keys: |
+  #           windows-node-
 
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+  #     - name: Setup Node.js 20
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '20'
 
-      - name: Install Dependencies
-        run: npm install --prefer-offline --legacy-peer-deps
+  #     - name: Install Dependencies
+  #       run: npm install --prefer-offline --legacy-peer-deps
 
-      - name: Build
-        run: npm run build:win
+  #     - name: Build
+  #       run: npm run build:win
 
-      - name: List release folder
-        run: dir dist/
+  #     - name: List release folder
+  #       run: dir dist/
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        id: create_release
-        with:
-          name: ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
-          draft: true
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+  #     - name: Create GitHub Release
+  #       uses: softprops/action-gh-release@v1
+  #       id: create_release
+  #       with:
+  #         name: ${{ github.ref_name }}
+  #         tag_name: ${{ github.ref_name }}
+  #         draft: true
+  #       env:
+  #         GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
-      - name: Upload Release Artifacts
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            dist/*.exe
-            dist/*.msi
-            dist/*.appx
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+  #     - name: Upload Release Artifacts
+  #       uses: softprops/action-gh-release@v1
+  #       with:
+  #         files: |
+  #           dist/*.exe
+  #           dist/*.msi
+  #           dist/*.appx
+  #       env:
+  #         GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
   # build_on_ubuntu:
   #   runs-on: ubuntu-latest
@@ -116,7 +116,7 @@ jobs:
 
       - name: Ensure Python 3 distutils is available
         run: |
-          python3 -m pip install --upgrade pip setuptools
+          python3 -m pip install --upgrade pip setuptools --break-system-packages
 
       - name: Install Dependencies
         run: npm install --prefer-offline --legacy-peer-deps
