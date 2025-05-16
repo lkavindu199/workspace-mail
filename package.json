@@ -77,6 +77,7 @@
         "mailto"
       ]
     },
+     "arch": ["x64", "ia32"],
     "publish":  null,
     "files": [
       "out",
