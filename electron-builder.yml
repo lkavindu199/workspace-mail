@@ -41,7 +41,7 @@ appImage:
 npmRebuild: false
 publish:
   provider: generic
-  repo: lkavindu199/workspace-mail
+  repo: username/workspace-mail
   releaseType: draft
   url: https://example.com/auto-updates
 electronDownload:
