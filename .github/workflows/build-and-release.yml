@@ -57,89 +57,89 @@ jobs:
   #       env:
   #         GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
-  # build_on_ubuntu:
-  #   runs-on: ubuntu-latest
-  #   permissions:
-  #     contents: write
-  #     packages: write
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v4
+  build_on_ubuntu:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-  #     - name: Cache Node.js dependencies
-  #       uses: actions/cache@v4
-  #       with:
-  #         path: ~/.npm
-  #         key: ubuntu-node-${{ hashFiles('/package-lock.json') }}
-  #         restore-keys: |
-  #           ubuntu-node-
+      - name: Cache Node.js dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ubuntu-node-${{ hashFiles('/package-lock.json') }}
+          restore-keys: |
+            ubuntu-node-
 
-  #     - name: Setup Node.js
-  #       uses: actions/setup-node@v4
-  #       with:
-  #         node-version: '20'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-  #     - name: Install Dependencies
-  #       run: npm install --prefer-offline --legacy-peer-deps
+      - name: Install Dependencies
+        run: npm install --prefer-offline --legacy-peer-deps
 
-  #     - name: Build the Package
-  #       run: npm run build:linux
+      - name: Build the Package
+        run: npm run build:linux
 
-  #     - name: List release folder
-  #       run: ls -la dist/
+      - name: List release folder
+        run: ls -la dist/
 
-  #     - name: Upload Ubuntu Release Artifacts
-  #       uses: softprops/action-gh-release@v1
-  #       with:
-  #         files: |
-  #           dist/*.deb
-  #           dist/*.snap
-  #           dist/*.AppImage
-  #       env:
-  #         GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      - name: Upload Ubuntu Release Artifacts
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/*.deb
+            dist/*.snap
+            dist/*.AppImage
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
-    build_on_mac:
-      runs-on: macOS-latest
-      permissions:
-        contents: write
-        packages: write
-      steps:
-        - name: Checkout repository
-          uses: actions/checkout@v4
+    # build_on_mac:
+    #   runs-on: macOS-latest
+    #   permissions:
+    #     contents: write
+    #     packages: write
+    #   steps:
+    #     - name: Checkout repository
+    #       uses: actions/checkout@v4
 
-        - name: Cache Node.js dependencies
-          uses: actions/cache@v4
-          with:
-            path: ~/.npm
-            key: mac-node-${{ hashFiles('package-lock.json') }}
-            restore-keys: |
-              mac-node-
+    #     - name: Cache Node.js dependencies
+    #       uses: actions/cache@v4
+    #       with:
+    #         path: ~/.npm
+    #         key: mac-node-${{ hashFiles('package-lock.json') }}
+    #         restore-keys: |
+    #           mac-node-
 
-        - name: Setup Node.js
-          uses: actions/setup-node@v4
-          with:
-            node-version: '20'
+    #     - name: Setup Node.js
+    #       uses: actions/setup-node@v4
+    #       with:
+    #         node-version: '20'
 
-        - name: Setup Python Virtual Environment
-          run: |
-            python3 -m venv venv
-            source venv/bin/activate
-            pip install setuptools
-            echo "$(pwd)/venv/bin" >> $GITHUB_PATH
+    #     - name: Setup Python Virtual Environment
+    #       run: |
+    #         python3 -m venv venv
+    #         source venv/bin/activate
+    #         pip install setuptools
+    #         echo "$(pwd)/venv/bin" >> $GITHUB_PATH
 
-        - name: Install Dependencies
-          run: npm install --prefer-offline --legacy-peer-deps
+    #     - name: Install Dependencies
+    #       run: npm install --prefer-offline --legacy-peer-deps
 
-        - name: Build the Package
-          run: npm run build:mac
+    #     - name: Build the Package
+    #       run: npm run build:mac
 
-        - name: List release folder
-          run: ls -la dist/
+    #     - name: List release folder
+    #       run: ls -la dist/
 
-        - name: Upload macOS Release Artifacts
-          uses: softprops/action-gh-release@v1
-          with:
-            files: |
-              dist/*.dmg
-          env:
-            GH_TOKEN: ${{ secrets.GH_TOKEN }}
+    #     - name: Upload macOS Release Artifacts
+    #       uses: softprops/action-gh-release@v1
+    #       with:
+    #         files: |
+    #           dist/*.dmg
+    #       env:
+    #         GH_TOKEN: ${{ secrets.GH_TOKEN }}
