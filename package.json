@@ -77,6 +77,11 @@
         "mailto"
       ]
     },
+    "publish": [
+      {
+        "provider": "github"
+      }
+    ],
     "files": [
       "out",
       "node_modules",
