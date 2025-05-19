@@ -2,12 +2,13 @@ name: Build And Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*' # Triggers on version tags (v1.0.0)
   pull_request:
     types: [review_requested]
 
 env:
   APP_VERSION: ${{ github.ref_name || '0.0.0' }}
+
 jobs:
   build_on_windows:
     runs-on: windows-latest
@@ -15,16 +16,14 @@ jobs:
       contents: write
       packages: write
     steps:
+      - name: Clean version string
+        run: |
+          echo "CLEAN_VERSION=${APP_VERSION#v}" >> $GITHUB_ENV
+
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Cache Node.js dependencies
-        uses: actions/cache@v4
         with:
-          path: ~/.npm
-          key: windows-node-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            windows-node-
+          fetch-depth: 0
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
@@ -34,94 +33,184 @@ jobs:
       - name: Install Dependencies
         run: npm install --prefer-offline --legacy-peer-deps
 
-      - name: Build with auto-update support
+      - name: Set version and build number
+        id: versioning
+        shell: pwsh
+        run: |
+          npm run bump-version
+
+          $appVersion = node -p "require('./package.json').version"
+          $buildNumber = node -p "require('./package.json').build.extraMetadata.buildNumber"
+
+          # Try to get previous tag, suppress error output
+          $prevTag = git describe --tags --abbrev=0 HEAD^ 2>$null
+          if (-not $prevTag) { $prevTag = $null }
+
+          if ($prevTag) {
+            $releaseNotes = git log --pretty=format:'- %s' "$prevTag..HEAD"
+          } else {
+            # No previous tag, get all commits
+            $releaseNotes = git log --pretty=format:'- %s'
+          }
+
+          echo "APP_VERSION=$appVersion" >> $env:GITHUB_ENV
+          echo "BUILD_NUMBER=$buildNumber" >> $env:GITHUB_ENV
+          echo "RELEASE_NOTES=$releaseNotes" >> $env:GITHUB_ENV
+
+
+      - name: Build Windows package
         run: npm run build:win
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-
-      - name: List release folder
-        run: dir dist/
+          APP_VERSION: ${{ env.APP_VERSION }}
+          BUILD_NUMBER: ${{ env.BUILD_NUMBER }}
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: windows-artifacts
-          path: dist/
+          name: windows-artifacts-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
+          path: |
+            dist/latest.yml
+            dist/*.exe
 
       - name: Authenticate to Google Cloud
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        if: success() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         uses: google-github-actions/auth@v1
         with:
           credentials_json: ${{ secrets.GCP_CREDENTIALS }}
-
       - name: Upload to Google Cloud Storage
         uses: google-github-actions/upload-cloud-storage@v1
         with:
-          path: dist/latest.yml,dist/*.exe
+          path: |
+            dist/latest.yml
+            dist/*.exe
           destination: workspacemail-updates/win/
           parent: false
 
-  build_on_mac:
-    runs-on: macOS-latest
-    permissions:
-      contents: write
-      packages: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+# name: Build And Release
+# on:
+#   push:
+#     tags:
+#       - 'v*'
+#   pull_request:
+#     types: [review_requested]
 
-      - name: Cache Node.js dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: mac-node-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            mac-node-
+# env:
+#   APP_VERSION: ${{ github.ref_name || '0.0.0' }}
+# jobs:
+#   build_on_windows:
+#     runs-on: windows-latest
+#     permissions:
+#       contents: write
+#       packages: write
+#     steps:
+#       - name: Checkout repository
+#         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+#       - name: Cache Node.js dependencies
+#         uses: actions/cache@v4
+#         with:
+#           path: ~/.npm
+#           key: windows-node-${{ hashFiles('package-lock.json') }}
+#           restore-keys: |
+#             windows-node-
 
-      - name: Setup Python Virtual Environment
-        run: |
-          python3 -m venv venv
-          source venv/bin/activate
-          pip install setuptools
-          echo "$(pwd)/venv/bin" >> $GITHUB_PATH
+#       - name: Setup Node.js 20
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: '20'
 
-      - name: Install Dependencies
-        run: npm install --prefer-offline --legacy-peer-deps
+#       - name: Install Dependencies
+#         run: npm install --prefer-offline --legacy-peer-deps
 
-      - name: Build with auto-update support
-        run: npm run build:mac
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+#       - name: Build with auto-update support
+#         run: npm run build:win
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
-      - name: List release folder
-        run: ls -la dist/
+#       - name: List release folder
+#         run: dir dist/
 
-      - name: Upload Mac Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mac-artifacts
-          path: dist/
-      - name: Authenticate to Google Cloud
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-        uses: google-github-actions/auth@v1
-        with:
-          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+#       - name: Upload Windows Artifacts
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: windows-artifacts
+#           path: dist/
 
-      - name: Upload to Google Cloud Storage
-        if: success() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-        uses: google-github-actions/upload-cloud-storage@v1
-        with:
-          path: dist/latest-mac.yml,dist/*.dmg,dist/*.zip
-          destination: workspacemail-updates/darwin/
-          parent: false
+#       - name: Authenticate to Google Cloud
+#         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+#         uses: google-github-actions/auth@v1
+#         with:
+#           credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+
+#       - name: Upload to Google Cloud Storage
+#         uses: google-github-actions/upload-cloud-storage@v1
+#         with:
+#           path: dist/latest.yml,dist/*.exe
+#           destination: workspacemail-updates/win/
+#           parent: false
+
+#   build_on_mac:
+#     runs-on: macOS-latest
+#     permissions:
+#       contents: write
+#       packages: write
+#     steps:
+#       - name: Checkout repository
+#         uses: actions/checkout@v4
+
+#       - name: Cache Node.js dependencies
+#         uses: actions/cache@v4
+#         with:
+#           path: ~/.npm
+#           key: mac-node-${{ hashFiles('package-lock.json') }}
+#           restore-keys: |
+#             mac-node-
+
+#       - name: Setup Node.js
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: '20'
+
+#       - name: Setup Python Virtual Environment
+#         run: |
+#           python3 -m venv venv
+#           source venv/bin/activate
+#           pip install setuptools
+#           echo "$(pwd)/venv/bin" >> $GITHUB_PATH
+
+#       - name: Install Dependencies
+#         run: npm install --prefer-offline --legacy-peer-deps
+
+#       - name: Build with auto-update support
+#         run: npm run build:mac
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+
+#       - name: List release folder
+#         run: ls -la dist/
+
+#       - name: Upload Mac Artifacts
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: mac-artifacts
+#           path: dist/
+#       - name: Authenticate to Google Cloud
+#         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+#         uses: google-github-actions/auth@v1
+#         with:
+#           credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+
+#       - name: Upload to Google Cloud Storage
+#         if: success() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+#         uses: google-github-actions/upload-cloud-storage@v1
+#         with:
+#           path: dist/latest-mac.yml,dist/*.dmg,dist/*.zip
+#           destination: workspacemail-updates/darwin/
+#           parent: false
 
   create_release:
-    needs: [build_on_windows, build_on_mac]
+    needs: [build_on_windows]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
