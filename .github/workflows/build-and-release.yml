@@ -81,85 +81,92 @@ jobs:
       - name: Upload to Google Cloud Storage
         uses: google-github-actions/upload-cloud-storage@v1
         with:
-          path: dist\
+          path: |
+            dist/latest.yml
+            dist/*.exe
           destination: workspacemail-updates/win/
           parent: false
 
 
-  # build_on_mac:
-  #   runs-on: macos-latest
-  #   permissions:
-  #     contents: write
-  #     packages: write
-  #   steps:
-  #     - name: Clean version string
-  #       run: echo "CLEAN_VERSION=${APP_VERSION#v}" >> $GITHUB_ENV
+  build_on_mac:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Clean version string
+        run: echo "CLEAN_VERSION=${APP_VERSION#v}" >> $GITHUB_ENV
 
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v4
-  #       with:
-  #         fetch-depth: 0
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-  #     - name: Setup Node.js 20
-  #       uses: actions/setup-node@v4
-  #       with:
-  #         node-version: '20'
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-  #     - name: Install Dependencies
-  #       run: npm install --prefer-offline --legacy-peer-deps
+      - name: Install Dependencies
+        run: npm install --prefer-offline --legacy-peer-deps
 
-  #     - name: Set version and build number
-  #       id: versioning
-  #       shell: bash
-  #       run: |
-  #         npm run bump-version
+      - name: Set version and build number
+        id: versioning
+        shell: bash
+        run: |
+          npm run bump-version
 
-  #         appVersion=$(node -p "require('./package.json').version")
-  #         buildNumber=$(node -p "require('./package.json').build.extraMetadata.buildNumber")
+          appVersion=$(node -p "require('./package.json').version")
+          buildNumber=$(node -p "require('./package.json').build.extraMetadata.buildNumber")
 
-  #         prevTag=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-  #         if [ -n "$prevTag" ]; then
-  #           releaseNotes=$(git log --pretty=format:'- %s' "$prevTag..HEAD")
-  #         else
-  #           releaseNotes=$(git log --pretty=format:'- %s')
-  #         fi
+          prevTag=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$prevTag" ]; then
+            releaseNotes=$(git log --pretty=format:'- %s' "$prevTag..HEAD")
+          else
+            releaseNotes=$(git log --pretty=format:'- %s')
+          fi
 
-  #         echo "APP_VERSION=$appVersion" >> $GITHUB_ENV
-  #         echo "BUILD_NUMBER=$buildNumber" >> $GITHUB_ENV
-  #         echo "RELEASE_NOTES=$releaseNotes" >> $GITHUB_ENV
+          echo "APP_VERSION=$appVersion" >> $GITHUB_ENV
+          echo "BUILD_NUMBER=$buildNumber" >> $GITHUB_ENV
+          echo "RELEASE_NOTES=$releaseNotes" >> $GITHUB_ENV
 
-  #     - name: Build Mac package
-  #       run: npm run build:mac
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-  #         APP_VERSION: ${{ env.APP_VERSION }}
-  #         BUILD_NUMBER: ${{ env.BUILD_NUMBER }}
+      - name: Build Mac package
+        run: npm run build:mac
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          APP_VERSION: ${{ env.APP_VERSION }}
+          BUILD_NUMBER: ${{ env.BUILD_NUMBER }}
 
-  #     - name: Upload Mac Artifacts
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: mac-artifacts-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
-  #         path: |
-  #           dist/*.dmg
-  #           dist/*.zip
-  #           dist/latest-mac.yml
+      - name: Upload Mac Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-artifacts-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/latest-mac.yml
 
-  #     - name: Authenticate to Google Cloud
-  #       if: success() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-  #       uses: google-github-actions/auth@v1
-  #       with:
-  #         credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+      - name: Authenticate to Google Cloud
+        if: success() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
 
-  #     - name: Upload to Google Cloud Storage
-  #       if: success() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-  #       uses: google-github-actions/upload-cloud-storage@v1
-  #       with:
-  #         path: dist
-  #         destination: workspacemail-updates/darwin/
+      - name: Upload to Google Cloud Storage
+        if: success() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        uses: google-github-actions/upload-cloud-storage@v1
+        with:
+          path: |
+            dist/latest-mac.yml
+            dist/*.dmg
+            dist/*.zip
+          destination: workspacemail-updates/darwin/
+          parent: false
+
 
 
   create_release:
-    needs: [build_on_windows]
+    needs: [build_on_windows, build_on_mac]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
