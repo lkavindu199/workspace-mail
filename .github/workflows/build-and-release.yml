@@ -79,13 +79,21 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_CREDENTIALS }}
 
+      - name: Prepare files for upload
+        run: |
+          mkdir -p upload
+          cp dist/latest.yml upload/ || echo "latest.yml not found"
+          cp dist/*.exe upload/ || echo "No EXE files found"
+
+      - name: Debug uploaded folder
+        run: ls -lh upload
+
       - name: Upload to Google Cloud Storage
-        if: success() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         uses: google-github-actions/upload-cloud-storage@v1
         with:
-          path: dist/latest.yml,dist/*.exe
+          path: upload/
           destination: workspacemail-updates/win/
-          parent: false
+
 
   # build_on_mac:
   #   runs-on: macOS-latest
