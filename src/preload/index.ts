@@ -58,4 +58,3 @@ window.open = (url: string | URL | undefined) => {
   window.electron?.openNewWindow?.(url.toString(), tabId)
   return null
 }
-

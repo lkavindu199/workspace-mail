@@ -3,9 +3,14 @@
   "version": "1.0.0",
   "description": "An Electron application with React and TypeScript",
   "main": "./out/main/index.js",
-  "author": "example.com",
+  "author": {
+    "name": "Kav",
+    "email": "you@example.com"
+  },
   "homepage": "https://electron-vite.org",
   "scripts": {
+    "bump-version": "node scripts/bump-version.js",
+    "prebuild": "npm run bump-version",
     "format": "prettier --write .",
     "lint": "eslint --cache .",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
@@ -24,10 +29,14 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^4.0.0",
+    "@sentry/electron": "^6.6.0",
+    "@sentry/integrations": "^7.114.0",
+    "@sentry/node": "^9.19.0",
     "@tailwindcss/cli": "^4.1.4",
     "@types/react-router-dom": "^5.3.3",
     "crypo": "^0.1.4",
     "dotenv": "^16.5.0",
+    "electron-log": "^5.4.0",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.3.9",
     "lucide-react": "^0.503.0",
@@ -38,7 +47,7 @@
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.0.0",
     "@electron-toolkit/tsconfig": "^1.0.1",
-    "@types/node": "^22.14.1",
+    "@types/node": "^22.15.19",
     "@types/react": "^19.1.1",
     "@types/react-dom": "^19.1.2",
     "@types/uuid": "^10.0.0",
@@ -70,11 +79,18 @@
   "build": {
     "appId": "com.example.workspacemail",
     "productName": "Workspace Mail",
+    "extraMetadata": {
+      "buildNumber": "1747650890"
+    },
     "protocols": {
       "name": "mailto",
       "schemes": [
         "mailto"
       ]
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "https://storage.googleapis.com/workspacemail-updates/${os}/${arch}"
     },
     "files": [
       "out",
@@ -87,16 +103,64 @@
     "mac": {
       "icon": "icon.icns",
       "category": "Email",
-      "target": "dmg"
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
     },
     "win": {
       "icon": "icon.ico",
-      "target": "nsis"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
+      ]
     },
     "linux": {
       "icon": "icon.png",
       "category": "Email",
-      "target": "AppImage"
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64",
+            "armv7l",
+            "arm64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64",
+            "armv7l",
+            "arm64"
+          ]
+        },
+        {
+          "target": "rpm",
+          "arch": [
+            "x64",
+            "armv7l",
+            "arm64"
+          ]
+        }
+      ]
     }
   }
 }

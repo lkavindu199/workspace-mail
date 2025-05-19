@@ -1,26 +1,166 @@
+# name: Build And Release
+# on:
+#   push:
+#     tags:
+#       - 'v*'
+#   pull_request:
+#     types: [review_requested]
+
+# env:
+#   APP_VERSION: ${{ github.ref_name && github.ref_name != '' && startsWith(github.ref_name, 'v') && replace(github.ref_name, 'v', '') || '0.0.0' }}
+
+# jobs:
+#   build_on_windows:
+#     runs-on: windows-latest
+#     permissions:
+#       contents: write
+#       packages: write
+#     steps:
+#       - name: Checkout repository
+#         uses: actions/checkout@v4
+
+#       - name: Cache Node.js dependencies
+#         uses: actions/cache@v4
+#         with:
+#           path: ~/.npm
+#           key: windows-node-${{ hashFiles('package-lock.json') }}
+#           restore-keys: |
+#             windows-node-
+
+#       - name: Setup Node.js 20
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: '20'
+
+#       - name: Install Dependencies
+#         run: npm install --prefer-offline --legacy-peer-deps
+
+#       - name: Build with auto-update support
+#         run: npm run build:win
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+
+#       - name: List release folder
+#         run: dir dist/
+
+#       - name: Upload Windows Artifacts
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: windows-artifacts
+#           path: dist/
+
+#   build_on_mac:
+#     runs-on: macOS-latest
+#     permissions:
+#       contents: write
+#       packages: write
+#     steps:
+#       - name: Checkout repository
+#         uses: actions/checkout@v4
+
+#       - name: Cache Node.js dependencies
+#         uses: actions/cache@v4
+#         with:
+#           path: ~/.npm
+#           key: mac-node-${{ hashFiles('package-lock.json') }}
+#           restore-keys: |
+#             mac-node-
+
+#       - name: Setup Node.js
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: '20'
+
+#       - name: Setup Python Virtual Environment
+#         run: |
+#           python3 -m venv venv
+#           source venv/bin/activate
+#           pip install setuptools
+#           echo "$(pwd)/venv/bin" >> $GITHUB_PATH
+
+#       - name: Install Dependencies
+#         run: npm install --prefer-offline --legacy-peer-deps
+
+#       - name: Build with auto-update support
+#         run: npm run build:mac
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+
+#       - name: List release folder
+#         run: ls -la dist/
+
+#       - name: Upload Mac Artifacts
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: mac-artifacts
+#           path: dist/
+
+#   create_release:
+#     needs: [build_on_windows, build_on_mac]
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Download all artifacts
+#         uses: actions/download-artifact@v4
+#         with:
+#           path: artifacts
+#           merge-multiple: true
+
+#       - name: List all downloaded artifacts
+#         run: ls -R artifacts
+
+#       - name: Filter only required files
+#         id: filtered_files
+#         run: |
+#           mkdir filtered
+#           find artifacts -type f \( \
+#             -iname "*.exe" -o \
+#             -iname "*.dmg" -o \
+#             -iname "*.zip" -o \
+#             -iname "latest.yml" -o \
+#             -iname "latest-mac.yml" -o \
+#             -iname "*.yml" \) \
+#             ! -iname "*.blockmap" \
+#             ! -iname "builder-debug.yml" \
+#             -exec cp {} filtered/ \;
+#           echo "files=$(ls -1 filtered | sed 's/^/filtered\//' | paste -sd ',' -)" >> $GITHUB_OUTPUT
+
+#       - name: Create GitHub Release
+#         uses: softprops/action-gh-release@v1
+#         with:
+#           name: ${{ github.ref_name }}
+#           tag_name: ${{ github.ref_name }}
+#           files: ${{ steps.filtered_files.outputs.files }}
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+
 name: Build And Release
 on:
   push:
     tags:
-      - 'v*'
-    pull_request:
-      types: [review_requested]
+      - 'v*' # Triggers on version tags (v1.0.0)
+  pull_request:
+    types: [review_requested]
+
+env:
+  APP_VERSION: ${{ github.ref_name || '0.0.0' }}
+
 jobs:
   build_on_windows:
     runs-on: windows-latest
+    permissions:
+      contents: write
+      packages: write
     steps:
+      - name: Clean version string
+        run: |
+          echo "CLEAN_VERSION=${APP_VERSION#v}" >> $GITHUB_ENV
+
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Cache Node.js dependencies
-        uses: actions/cache@v4
         with:
-          path: ~/.npm
-          key: windows-node-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            windows-node-
+          fetch-depth: 0
 
-      - name: Setup Node.js
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -28,85 +168,72 @@ jobs:
       - name: Install Dependencies
         run: npm install --prefer-offline --legacy-peer-deps
 
-      - name: Build
+      - name: Set version and build number
+        id: versioning
+        shell: pwsh
+        run: |
+          npm run bump-version
+
+          $appVersion = node -p "require('./package.json').version"
+          $buildNumber = node -p "require('./package.json').build.extraMetadata.buildNumber"
+
+          # Try to get previous tag, suppress error output
+          $prevTag = git describe --tags --abbrev=0 HEAD^ 2>$null
+          if (-not $prevTag) { $prevTag = $null }
+
+          if ($prevTag) {
+            $releaseNotes = git log --pretty=format:'- %s' "$prevTag..HEAD"
+          } else {
+            # No previous tag, get all commits
+            $releaseNotes = git log --pretty=format:'- %s'
+          }
+
+          echo "APP_VERSION=$appVersion" >> $env:GITHUB_ENV
+          echo "BUILD_NUMBER=$buildNumber" >> $env:GITHUB_ENV
+          echo "RELEASE_NOTES=$releaseNotes" >> $env:GITHUB_ENV
+
+
+      - name: Build Windows package
         run: npm run build:win
-
-      - name: List release folder
-        run: dir dist/
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        id: create_release
-        with:
-          name: ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
-          draft: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          APP_VERSION: ${{ env.APP_VERSION }}
+          BUILD_NUMBER: ${{ env.BUILD_NUMBER }}
 
-      - name: Upload Release Artifacts
-        uses: softprops/action-gh-release@v1
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
         with:
-          files: |
+          name: windows-artifacts-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
+          path: |
+            dist/latest.yml
             dist/*.exe
-            dist/*.msi
-            dist/*.appx
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # build_on_ubuntu:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v4
+      - name: Authenticate to Google Cloud
+        if: success() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
 
-  #     - name: Cache Node.js dependencies
-  #       uses: actions/cache@v4
-  #       with:
-  #         path: ~/.npm
-  #         key: ubuntu-node-${{ hashFiles('/package-lock.json') }}
-  #         restore-keys: |
-  #           ubuntu-node-
-
-  #     - name: Setup Node.js
-  #       uses: actions/setup-node@v4
-  #       with:
-  #         node-version: '20'
-
-  #     - name: Install Dependencies
-  #       run: npm install --prefer-offline --legacy-peer-deps
-
-  #     - name: Build the Package
-  #       run: npm run build:linux
-
-  #     - name: List release folder
-  #       run: ls -la dist/
-
-  #     - name: Upload Ubuntu Release Artifacts
-  #       uses: softprops/action-gh-release@v1
-  #       with:
-  #         files: |
-  #           dist/*.deb
-  #           dist/*.snap
-  #           dist/*.AppImage
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload to Google Cloud Storage
+        if: success() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        uses: google-github-actions/upload-cloud-storage@v1
+        with:
+          path: dist/*
+          destination: workspacemail-updates/win/${{ matrix.arch }}
+          parent: false
 
   # build_on_mac:
   #   runs-on: macOS-latest
+  #   permissions:
+  #     contents: write
+  #     packages: write
   #   steps:
   #     - name: Checkout repository
   #       uses: actions/checkout@v4
-
-  #     - name: Cache Node.js dependencies
-  #       uses: actions/cache@v4
   #       with:
-  #         path: ~/.npm
-  #         key: mac-node-${{ hashFiles('/package-lock.json') }}
-  #         restore-keys: |
-  #           mac-node-
+  #         fetch-depth: 0
 
-  #     - name: Setup Node.js
+  #     - name: Setup Node.js 20
   #       uses: actions/setup-node@v4
   #       with:
   #         node-version: '20'
@@ -114,16 +241,88 @@ jobs:
   #     - name: Install Dependencies
   #       run: npm install --prefer-offline --legacy-peer-deps
 
-  #     - name: Build the Package
+  #     - name: Set version and build number
+  #       run: |
+  #         npm run bump-version
+  #         echo "APP_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+  #         echo "BUILD_NUMBER=$(node -p "require('./package.json').build.extraMetadata.buildNumber")" >> $GITHUB_ENV
+
+  #     - name: Build Mac package
   #       run: npm run build:mac
-
-  #     - name: List release folder
-  #       run: ls -la dist/
-
-  #     - name: Upload macOS Release Artifacts
-  #       uses: softprops/action-gh-release@v1
-  #       with:
-  #         files: |
-  #           dist/*.dmg
   #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+  #         APP_VERSION: ${{ env.APP_VERSION }}
+  #         BUILD_NUMBER: ${{ env.BUILD_NUMBER }}
+
+  #     - name: Upload Mac Artifacts
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: mac-artifacts-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
+  #         path: dist/
+
+  #     - name: Authenticate to Google Cloud
+  #       if: success() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+  #       uses: google-github-actions/auth@v1
+  #       with:
+  #         credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+
+  #     - name: Upload to Google Cloud Storage
+  #       if: success() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+  #       uses: google-github-actions/upload-cloud-storage@v1
+  #       with:
+  #         path: dist/*
+  #         destination: workspacemail-updates/darwin/
+  #         parent: false
+
+  create_release:
+    needs: [build_on_windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Filter release assets
+        id: filtered_files
+        run: |
+          mkdir -p release_assets
+          # Find all relevant files
+          find artifacts -type f \( \
+            -iname "*.exe" -o \
+            -iname "*.dmg" -o \
+            -iname "*.zip" -o \
+            -iname "latest.yml" -o \
+            -iname "latest-mac.yml" \) \
+            -exec cp {} release_assets/ \;
+
+          # Rename files to include version and build number
+          cd release_assets
+          for file in *; do
+            ext="${file##*.}"
+            base="${file%.*}"
+            mv "$file" "${base}-${GITHUB_REF_NAME}-${BUILD_NUMBER}.${ext}"
+          done
+
+          echo "files=$(ls -1 | sed 's/^/release_assets\//' | paste -sd ',' -)" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          BUILD_NUMBER: ${{ needs.build_on_windows.outputs.BUILD_NUMBER }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ env.APP_VERSION }} (Build ${{ env.BUILD_NUMBER }})
+          tag_name: ${{ github.ref_name }}
+          body: |
+            ### Version ${{ env.APP_VERSION }}
+            **Build Number:** ${{ env.BUILD_NUMBER }}
+
+            ### Changes since last release:
+            ${{ env.RELEASE_NOTES }}
+          files: ${{ steps.filtered_files.outputs.files }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}

@@ -9,7 +9,8 @@ import {
   WebContents,
   ContextMenuParams,
   ipcMain,
-  dialog
+  dialog,
+  Notification
 } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import log from 'electron-log'
@@ -20,12 +21,30 @@ import * as fs from 'fs'
 import Store from 'electron-store'
 import crypto from 'crypto'
 import dotenv from 'dotenv'
+import * as Sentry from "@sentry/electron/main"
+// import { RewriteFrames } from '@sentry/integrations'
 
+if (app.isPackaged) {
+  // Instead of Sentry.init()
+  Sentry.init({
+
+    dsn: "https://1cb9c612462fa2363bc9746b28a30f08@o4509347214786560.ingest.us.sentry.io/4509348053188608",
+    release: app.getVersion(),
+    integrations: [
+      Sentry.onUncaughtExceptionIntegration(),
+      Sentry.onUnhandledRejectionIntegration(),
+    ],
+    beforeSend(event) {
+      return event;
+    },
+  });
+
+}
 dotenv.config()
 
 
-  let isUpdateDownloaded = false;
-
+let isUpdateDownloaded = false;
+let shouldInstallOnQuit = false;
 const store = new Store()
 
 const algorithm = 'aes-256-cbc'
@@ -44,14 +63,14 @@ function decryptPassword(encrypted: string): string {
       encrypted === 'undefined' ||
       encrypted === 'null'
     ) {
-      console.warn('Empty or invalid input to decryptPassword')
+      // console.log('Empty or invalid input to decryptPassword')
       return ''
     }
 
     // Expecting format: <ivHex>:<encryptedText>
     const parts = encrypted.split(':')
     if (parts.length !== 2) {
-      console.error('Invalid encrypted format - missing or too many IV separators')
+      // console.log('Invalid encrypted format - missing or too many IV separators')
       return ''
     }
 
@@ -59,18 +78,18 @@ function decryptPassword(encrypted: string): string {
 
     // Validate IV format and length (128 bits = 16 bytes = 32 hex chars)
     if (!/^[0-9a-fA-F]{32}$/.test(ivHex)) {
-      console.error('Invalid IV format or length')
+      // console.log('Invalid IV format or length')
       return ''
     }
 
     if (!encryptedText || encryptedText.trim() === '') {
-      console.error('Missing encrypted text')
+      // console.log('Missing encrypted text')
       return ''
     }
 
     const iv = Buffer.from(ivHex, 'hex')
     if (iv.length !== 16) {
-      console.error('IV buffer length is not 16 bytes')
+      // console.log('IV buffer length is not 16 bytes')
       return ''
     }
 
@@ -82,6 +101,9 @@ function decryptPassword(encrypted: string): string {
     return decrypted
   } catch (error) {
     console.error('Decryption failed:', error)
+    Sentry.captureException(error, {
+      extra: { encrypted: encrypted ? 'present' : 'missing' }
+    })
     return ''
   }
 }
@@ -104,28 +126,29 @@ function createAppMenu(
           click: () => {
             const location = getStorageLocation();
             shell.openPath(location).then((result) => {
-              if (result) console.error('Failed to open folder:', result);
+              if (result) console.log('Failed to open folder:', result);
             });
           }
         },
         { type: 'separator' },
-       {
-  label: 'Check for Updates',
-  click: () => {
-    autoUpdater.checkForUpdates().catch(err => {
-      console.error('Manual update check failed:', err);
-      const mainWindow = WindowManager.getInstance().win;
-      dialog.showMessageBox(mainWindow, {
-        type: 'error',
-        title: 'Update Error',
-        message: 'Failed to check for updates: ' + err.message,
-        buttons: ['OK'],
-      });
-    });
-  }
-}
+        {
+          label: 'Check for Updates',
+          click: () => {
+            autoUpdater.checkForUpdates().catch(err => {
+              Sentry.captureException(err)
+              console.error('Manual update check failed:', err);
+              const mainWindow = WindowManager.getInstance().win;
+              dialog.showMessageBox(mainWindow, {
+                type: 'error',
+                title: 'Update Error',
+                message: 'Failed to check for updates!',
+                buttons: ['OK'],
+              });
+            });
+          }
+        }
 
-,
+        ,
         {
           label: 'Enable Auto-Update',
           type: 'checkbox',
@@ -160,7 +183,13 @@ function createAppMenu(
     {
       label: 'View',
       submenu: [
-        { role: 'reload' },
+        {
+          label: 'Reload',
+          accelerator: 'CmdOrCtrl+R',
+          click: () => {
+            WindowManager.getInstance().refreshAll();
+          }
+        },
         { role: 'toggleDevTools' },
         { type: 'separator' },
         { role: 'resetZoom' },
@@ -174,7 +203,7 @@ function createAppMenu(
       label: 'Office',
       click: () => {
         exec('"C:\\Program Files\\ONLYOFFICE\\DesktopEditors\\DesktopEditors.exe"', (err) => {
-          if (err) console.error('OnlyOffice failed to launch:', err)
+          if (err) console.log('OnlyOffice failed to launch:', err)
         })
       }
     },
@@ -243,44 +272,59 @@ function createWebView(
 
 // Context Menu and WebContents Management
 function createContextMenu(webContents: WebContents, params: ContextMenuParams): Menu {
-  const menu = new Menu()
+  const menu = new Menu();
 
+  // Spellcheck suggestions
   if (params.misspelledWord) {
     if (params.dictionarySuggestions.length > 0) {
       for (const suggestion of params.dictionarySuggestions) {
         menu.append(
           new MenuItem({
             label: suggestion,
-            click: () => webContents.replaceMisspelling(suggestion)
+            click: () => webContents.replaceMisspelling(suggestion),
           })
-        )
+        );
       }
     } else {
       menu.append(
         new MenuItem({
           label: 'No suggestions',
-          enabled: false
+          enabled: false,
         })
-      )
+      );
     }
-    menu.append(new MenuItem({ type: 'separator' }))
+    menu.append(new MenuItem({ type: 'separator' }));
   }
 
-  menu.append(new MenuItem({ role: 'cut', label: 'Cut' }))
-  menu.append(new MenuItem({ role: 'copy', label: 'Copy' }))
-  menu.append(new MenuItem({ role: 'paste', label: 'Paste' }))
-  menu.append(new MenuItem({ type: 'separator' }))
-  menu.append(new MenuItem({ role: 'selectAll', label: 'Select All' }))
+  // Copy (only if text is selected)
+  if (params.selectionText && params.selectionText.trim() !== '') {
+    menu.append(new MenuItem({ role: 'copy', label: 'Copy' }));
+  }
 
-  menu.append(new MenuItem({ type: 'separator' }))
+  // Paste (only if in an editable area)
+  if (params.isEditable) {
+    menu.append(new MenuItem({ role: 'cut', label: 'Cut' }));
+    menu.append(new MenuItem({ role: 'paste', label: 'Paste' }));
+  }
+
+  // Only show separator if at least one of Cut/Copy/Paste was added
+  if (params.selectionText || params.isEditable) {
+    menu.append(new MenuItem({ type: 'separator' }));
+  }
+
+  // Select All
+  menu.append(new MenuItem({ role: 'selectAll', label: 'Select All' }));
+
+  // DevTools option
+  menu.append(new MenuItem({ type: 'separator' }));
   menu.append(
     new MenuItem({
       label: 'Open DevTools',
-      click: () => webContents.openDevTools({ mode: 'detach' })
+      click: () => webContents.openDevTools({ mode: 'detach' }),
     })
-  )
+  );
 
-  return menu
+  return menu;
 }
 
 function attachContextMenu(webContents: WebContents): void {
@@ -298,6 +342,7 @@ function attachContextMenu(webContents: WebContents): void {
     webContents.session.setSpellCheckerEnabled(true)
   } catch (err) {
     console.error('Spellchecker error:', err)
+    Sentry.captureException(err);
   }
 }
 
@@ -383,7 +428,7 @@ class WindowManager {
     })
   }
 
-  private refreshAll(): void {
+  public refreshAll(): void {
     if (this.win?.webContents && !this.win.webContents.isDestroyed()) {
       this.win.webContents.reload()
     }
@@ -484,6 +529,7 @@ class WindowManager {
           updatedTabs.push(updatedTab)
         } catch (error) {
           console.error(`Error loading tab ID ${tab.id}:`, error)
+          Sentry.captureException(error)
           updatedTabs.push(tab)
         }
       })
@@ -526,7 +572,7 @@ class WindowManager {
     try {
       password = decryptPassword(encryptedPassword)
     } catch (error) {
-      console.error('Failed to decrypt password:', error)
+      console.log('Failed to decrypt password:', error)
       return null
     }
 
@@ -550,16 +596,18 @@ class WindowManager {
 
       if (!response.ok) {
         console.error(`Authentication failed (HTTP ${response.status}):`, result.message)
+        Sentry.captureException(result.message)
         return null
       }
 
       if (result.autoLoginUrl) {
         return result.autoLoginUrl
       } else {
-        console.error('Authentication successful but no autoLoginUrl received.')
+        console.log('Authentication successful but no autoLoginUrl received.')
         return null
       }
     } catch (error) {
+      Sentry.captureException(error)
       console.error('Error during authentication:', error)
       return null
     }
@@ -603,15 +651,16 @@ class WindowManager {
               try {
                 const result = await shell.openPath(savePath)
                 if (result) {
-                  console.error(`Failed to open file: ${result}`)
+                  console.log(`Failed to open file: ${result}`)
                 } else {
                   console.log(`Successfully opened: ${savePath}`)
                 }
               } catch (err) {
-                console.error('Error opening file:', err)
+                Sentry.captureException(err)
+                console.log('Error opening file:', err)
               }
             } else {
-              console.error('File not ready after timeout, not opening.')
+              console.log('File not ready after timeout, not opening.')
             }
           } else {
             console.warn(`Download not completed. State: ${state}`)
@@ -723,6 +772,7 @@ class WindowManager {
                 console.warn(`Authentication failed for tab ID: ${tab.id}, using saved URL.`)
               }
             } catch (err) {
+              Sentry.captureException(err)
               console.error(`Auth error for tab ${tab.id}:`, err)
             }
           }
@@ -809,9 +859,9 @@ class WindowManager {
 
     if (!url.startsWith('/storedTab')) {
       if (index >= 0) {
-        ;(savedTabs as { id: string; url?: string }[])[index].url = finalUrl
+        ; (savedTabs as { id: string; url?: string }[])[index].url = finalUrl
       } else {
-        ;(savedTabs as { id: string; url?: string }[]).push({ id, url: finalUrl })
+        ; (savedTabs as { id: string; url?: string }[]).push({ id, url: finalUrl })
       }
       store.set('tabs', savedTabs)
     }
@@ -842,7 +892,7 @@ function handleIpc(view: WebContentsView): void {
       } else if (ext === '.txt') {
         readFile(file.filePath, 'utf8', (err, content) => {
           if (err) {
-            console.error('Error reading file:', err)
+            console.log('Error reading file:', err)
             return
           }
           const html = `
@@ -857,7 +907,7 @@ function handleIpc(view: WebContentsView): void {
       } else {
         webContents.loadURL(
           'data:text/plain;charset=utf-8,' +
-            encodeURIComponent(`Unsupported file: ${file.fileName}`)
+          encodeURIComponent(`Unsupported file: ${file.fileName}`)
         )
       }
     }
@@ -988,7 +1038,7 @@ ipcMain.handle('decrypt', async (_, encrypted) => {
     // Expecting format: <ivHex>:<encryptedText>
     const parts = encrypted.split(':')
     if (parts.length !== 2) {
-      console.error('Invalid encrypted format - missing or too many IV separators')
+      console.log('Invalid encrypted format - missing or too many IV separators')
       return ''
     }
 
@@ -996,18 +1046,18 @@ ipcMain.handle('decrypt', async (_, encrypted) => {
 
     // Validate IV format and length (128 bits = 16 bytes = 32 hex chars)
     if (!/^[0-9a-fA-F]{32}$/.test(ivHex)) {
-      console.error('Invalid IV format or length')
+      console.log('Invalid IV format or length')
       return ''
     }
 
     if (!encryptedText || encryptedText.trim() === '') {
-      console.error('Missing encrypted text')
+      console.log('Missing encrypted text')
       return ''
     }
 
     const iv = Buffer.from(ivHex, 'hex')
     if (iv.length !== 16) {
-      console.error('IV buffer length is not 16 bytes')
+      console.log('IV buffer length is not 16 bytes')
       return ''
     }
 
@@ -1017,45 +1067,43 @@ ipcMain.handle('decrypt', async (_, encrypted) => {
 
     return decrypted
   } catch (error) {
-    console.error('Decryption failed:', error)
+    console.log('Decryption failed:', error)
     return ''
   }
 })
 
+
 function setupAutoUpdater() {
-  autoUpdater.autoDownload = false;
- let baseUpdateUrl = 'http://localhost:5500/updates';
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = false;
+
+  let baseUpdateUrl = 'https://storage.googleapis.com/workspacemail-updates';
   if (!app.isPackaged) {
     log.info('Skipping auto-update checks in development');
     return;
   }
 
-  // Set the update server URL for manual and auto checks
   if (process.platform === 'win32') {
-    autoUpdater.setFeedURL(`${baseUpdateUrl}/win32`);
+    autoUpdater.setFeedURL(`${baseUpdateUrl}/win/${process.arch}`);
   } else if (process.platform === 'darwin') {
-    autoUpdater.setFeedURL(`${baseUpdateUrl}/darwin`);
-  }else if (process.platform === 'linux') {
-    autoUpdater.setFeedURL(`${baseUpdateUrl}/linux`);
+    autoUpdater.setFeedURL(`${baseUpdateUrl}/darwin/${process.arch}`);
+  } else if (process.platform === 'linux') {
+    autoUpdater.setFeedURL(`${baseUpdateUrl}/linux/${process.arch}`);
   }
 
-  // Attach event listeners (always attach so manual updates work)
   attachAutoUpdateListeners();
 
   const isAutoUpdateEnabled = store.get('autoUpdate', true) as boolean;
-
   if (!isAutoUpdateEnabled) {
     log.info('Auto-update is disabled; manual update only.');
-    return; // Don't do background or scheduled checks
+    return;
   }
 
-  // Auto check for updates if enabled
   autoUpdater.checkForUpdates();
   setInterval(() => {
     autoUpdater.checkForUpdates();
   }, 12 * 60 * 60 * 1000);
 }
-
 
 function attachAutoUpdateListeners() {
   autoUpdater.on('checking-for-update', () => {
@@ -1064,19 +1112,6 @@ function attachAutoUpdateListeners() {
 
   autoUpdater.on('update-available', (info) => {
     log.info(`Update available: ${info.version}`);
-    dialog.showMessageBox({
-      type: 'info',
-      title: 'Update Available',
-      message: `Version ${info.version} is available. Would you like to download it now?`,
-      buttons: ['Download', 'Later'],
-    }).then(result => {
-      if (result.response === 0) {
-        log.info('User accepted update. Starting download...');
-        autoUpdater.downloadUpdate();
-      } else {
-        log.info('User postponed update.');
-      }
-    });
   });
 
   autoUpdater.on('update-not-available', () => {
@@ -1084,14 +1119,8 @@ function attachAutoUpdateListeners() {
   });
 
   autoUpdater.on('error', (err) => {
+    Sentry.captureException(err);
     log.error('Update error:', err);
-    const mainWindow = WindowManager.getInstance().win;
-    dialog.showMessageBox(mainWindow, {
-      type: 'error',
-      title: 'Update Error',
-      message: 'Failed to check for updates: ' + err.message,
-      buttons: ['OK'],
-    });
   });
 
   autoUpdater.on('download-progress', (progress) => {
@@ -1100,71 +1129,57 @@ function attachAutoUpdateListeners() {
 
   autoUpdater.on('update-downloaded', (info) => {
     log.info('Update downloaded, ready to install');
-    dialog.showMessageBox({
+    isUpdateDownloaded = true;
+    shouldInstallOnQuit = false;
+
+    createAppMenu(
+      createAboutWindow,
+      createSettingsWindow,
+      () => store.get('storageLocation', app.getPath('downloads')) as string
+    );
+
+    const mainWindow = WindowManager.getInstance().win;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+
+    const notification = {
+      title: 'Update Ready',
+      body: `Version ${info.version} is ready to install. Click to restart.`,
+      silent: true
+    };
+
+    new Notification(notification).show();
+
+    dialog.showMessageBox(mainWindow, {
       type: 'info',
       buttons: ['Restart Now', 'Later'],
       title: 'Application Update',
       message: 'A new version has been downloaded. Restart the application to apply the updates.',
-      detail: `Version ${info.version} is ready to install.`
+      detail: `Version ${info.version} is ready to install.`,
+      cancelId: 1
     }).then((returnValue) => {
       if (returnValue.response === 0) {
+        log.info('User accepted update install now');
         autoUpdater.quitAndInstall();
+      } else {
+        log.info('User postponed update installation');
+        shouldInstallOnQuit = true;
       }
     });
   });
-}
 
-
-  autoUpdater.on('update-not-available', () => {
-    log.info('No updates available');
-  });
-
-  autoUpdater.on('error', (err) => {
-    log.error('Update error:', err);
-    const mainWindow = WindowManager.getInstance().win;
-    dialog.showMessageBox(mainWindow, {
-      type: 'error',
-      title: 'Update Error',
-      message: 'Failed to check for updates: ' + err.message,
-      buttons: ['OK'],
-    });
-  });
-
-  autoUpdater.on('download-progress', (progress) => {
-    log.info(`Download progress: ${Math.floor(progress.percent)}%`);
-  });
-
-autoUpdater.on('update-downloaded', (info) => {
-  log.info('Update downloaded, ready to install');
-  isUpdateDownloaded = true;
-
-  createAppMenu(
-    createAboutWindow,
-    createSettingsWindow,
-    () => store.get('storageLocation', app.getPath('downloads')) as string
-  );
-
-  const dialogOpts: Electron.MessageBoxOptions = {
-    type: 'info',
-    buttons: ['Restart Now', 'Later'],
-    title: 'Application Update',
-    message: 'A new version has been downloaded. Restart the application to apply the updates.',
-    detail: `Version ${info.version} is ready to install.`
-  };
-
-  dialog.showMessageBox(dialogOpts).then((returnValue) => {
-    if (returnValue.response === 0) {
-      autoUpdater.quitAndInstall();
+  app.on('before-quit', () => {
+    if (isUpdateDownloaded && shouldInstallOnQuit) {
+      autoUpdater.quitAndInstall(true, false);
     }
   });
-});
+}
 
 
 // App Initialization
 app.whenReady().then(() => {
   const mainWindowManager = WindowManager.getInstance()
 
-setupAutoUpdater();
+  setupAutoUpdater();
   app.on('window-all-closed', () => {
     const hasOtherWindows = BrowserWindow.getAllWindows().some((win) => {
       return win !== mainWindowManager.win && !win.isDestroyed()
@@ -1206,6 +1221,7 @@ setupAutoUpdater();
       store.clear()
       return { success: true, message: 'Store cleared successfully.' }
     } catch (error) {
+      Sentry.captureException(error)
       console.error('Error clearing store:', error)
       return { success: false, message: 'Failed to clear store.' }
     }
