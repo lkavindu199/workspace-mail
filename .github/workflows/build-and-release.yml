@@ -7,8 +7,7 @@ on:
     types: [review_requested]
 
 env:
-  APP_VERSION: ${{ github.ref_name && github.ref_name != '' && startsWith(github.ref_name, 'v') && replace(github.ref_name, 'v', '') || '0.0.0' }}
-
+  APP_VERSION: ${{ github.ref_name || '0.0.0' }}
 jobs:
   build_on_windows:
     runs-on: windows-latest
