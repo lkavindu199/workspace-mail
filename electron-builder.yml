@@ -42,14 +42,7 @@ appImage:
   artifactName: ${name}-${version}-${buildNumber}-setup.${ext}
 npmRebuild: false
 publish:
-<<<<<<< HEAD
   provider: generic
   url: https://storage.googleapis.com/workspacemail-updates/${os}/${arch}
-=======
-  provider: "github"
-  repo: lkavindu199/workspace-mail
-  releaseType: draft
-  url: https://example.com/auto-updates
->>>>>>> 57c7b5da717b1174a8f9165777991b97831c1929
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
