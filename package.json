@@ -88,14 +88,10 @@
         "mailto"
       ]
     },
-<<<<<<< HEAD
     "publish": {
       "provider": "generic",
       "url": "https://storage.googleapis.com/workspacemail-updates/${os}/${arch}"
     },
-=======
-    "publish": null,
->>>>>>> 57c7b5da717b1174a8f9165777991b97831c1929
     "files": [
       "out",
       "node_modules",
@@ -133,16 +129,6 @@
             "x64",
             "ia32"
           ]
-<<<<<<< HEAD
-=======
-        },
-        {
-          "target": "msi",
-          "arch": [
-            "x64",
-            "ia32"
-          ]
->>>>>>> 57c7b5da717b1174a8f9165777991b97831c1929
         }
       ]
     },
