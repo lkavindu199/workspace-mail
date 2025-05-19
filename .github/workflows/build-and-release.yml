@@ -83,9 +83,7 @@ jobs:
         if: success() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         uses: google-github-actions/upload-cloud-storage@v1
         with:
-          path: |
-            dist/latest.yml
-            dist/*.exe
+          path: dist/latest.yml,dist/*.exe
           destination: workspacemail-updates/win/
           parent: false
 
