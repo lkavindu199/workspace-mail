@@ -81,18 +81,22 @@ jobs:
 
       - name: Prepare files for upload
         run: |
-          mkdir -p upload
-          cp dist/latest.yml upload/ || echo "latest.yml not found"
-          cp dist/*.exe upload/ || echo "No EXE files found"
+          mkdir upload
+          copy dist\latest.yml upload\ 2>$null
+          copy dist\*.exe upload\ 2>$null
 
-      - name: Debug uploaded folder
-        run: ls -lh upload
+      - name: Debug uploaded folder (Windows)
+        run: |
+          Get-ChildItem -Path upload | ForEach-Object {
+            "$($_.Name) - $([Math]::Round($_.Length / 1KB, 2)) KB"
+          }
 
       - name: Upload to Google Cloud Storage
         uses: google-github-actions/upload-cloud-storage@v1
         with:
-          path: upload/
+          path: upload\
           destination: workspacemail-updates/win/
+
 
 
   # build_on_mac:
