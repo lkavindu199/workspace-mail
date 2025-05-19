@@ -238,8 +238,8 @@ jobs:
   #       with:
   #         node-version: '20'
 
-  #     - name: Install Dependencies
-  #       run: npm install --prefer-offline --legacy-peer-deps
+        - name: Install Dependencies
+          run: npm install --prefer-offline --legacy-peer-deps
 
   #     - name: Set version and build number
   #       run: |
