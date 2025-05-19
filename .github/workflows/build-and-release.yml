@@ -218,7 +218,8 @@ jobs:
         if: success() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         uses: google-github-actions/upload-cloud-storage@v1
         with:
-          path: dist/*
+          path: |
+            dist/**
           destination: workspacemail-updates/win/
           parent: false
 
@@ -270,7 +271,8 @@ jobs:
   #       if: success() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
   #       uses: google-github-actions/upload-cloud-storage@v1
   #       with:
-  #         path: dist/*
+  #         path: |
+  #           dist/**
   #         destination: workspacemail-updates/darwin/
   #         parent: false
 
