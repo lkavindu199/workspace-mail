@@ -2,12 +2,13 @@ name: Build And Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*' # Triggers on version tags (v1.0.0)
   pull_request:
     types: [review_requested]
 
 env:
   APP_VERSION: ${{ github.ref_name || '0.0.0' }}
+
 jobs:
   build_on_windows:
     runs-on: windows-latest
@@ -15,16 +16,13 @@ jobs:
       contents: write
       packages: write
     steps:
+      - name: Clean version string
+        run: |
+          echo "CLEAN_VERSION=${APP_VERSION#v}" >> $GITHUB_ENV
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Cache Node.js dependencies
-        uses: actions/cache@v4
         with:
-          path: ~/.npm
-          key: windows-node-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            windows-node-
+          fetch-depth: 0
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
@@ -34,13 +32,31 @@ jobs:
       - name: Install Dependencies
         run: npm install --prefer-offline --legacy-peer-deps
 
-      - name: Build with auto-update support
+      - name: Set version and build number
+        id: versioning
+        shell: pwsh
+        run: |
+          npm run bump-version
+          $appVersion = node -p "require('./package.json').version"
+          $buildNumber = node -p "require('./package.json').build.extraMetadata.buildNumber"
+          # Try to get previous tag, suppress error output
+          $prevTag = git describe --tags --abbrev=0 HEAD^ 2>$null
+          if (-not $prevTag) { $prevTag = $null }
+          if ($prevTag) {
+            $releaseNotes = git log --pretty=format:'- %s' "$prevTag..HEAD"
+          } else {
+            # No previous tag, get all commits
+            $releaseNotes = git log --pretty=format:'- %s'
+          }
+          echo "APP_VERSION=$appVersion" >> $env:GITHUB_ENV
+          echo "BUILD_NUMBER=$buildNumber" >> $env:GITHUB_ENV
+          echo "RELEASE_NOTES=$releaseNotes" >> $env:GITHUB_ENV
+      - name: Build Windows package
         run: npm run build:win
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-
-      - name: List release folder
-        run: dir dist/
+          APP_VERSION: ${{ env.APP_VERSION }}
+          BUILD_NUMBER: ${{ env.BUILD_NUMBER }}
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
@@ -54,12 +70,21 @@ jobs:
         uses: google-github-actions/auth@v1
         with:
           credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+
+      - name: Prepare files for upload
+        run: |
+          mkdir upload
+          copy dist\latest.yml upload\ 2>$null
+          copy dist\*.exe upload\ 2>$null
+      - name: Debug uploaded folder (Windows)
+        run: |
+          Get-ChildItem -Path upload | ForEach-Object {
+            "$($_.Name) - $([Math]::Round($_.Length / 1KB, 2)) KB"
+          }
       - name: Upload to Google Cloud Storage
         uses: google-github-actions/upload-cloud-storage@v1
         with:
-          path: |
-            dist\latest.yml
-            dist\*.exe
+          path: upload\
           destination: workspacemail-updates/win/
           parent: false
 
@@ -111,22 +136,32 @@ jobs:
             dist/latest-mac.yml
             dist/*.dmg
             dist/*.zip
+      - name: Prepare files for upload (macOS)
+        run: |
+          mkdir -p upload
+          cp dist/latest-mac.yml upload/ 2>/dev/null || true
+          cp dist/*.dmg upload/ 2>/dev/null || true
+          cp dist/*.zip upload/ 2>/dev/null || true
+
+      - name: Debug uploaded folder (macOS)
+        run: |
+          echo "Uploaded contents:"
+          du -h upload/* || echo "No files found"
+
       - name: Authenticate to Google Cloud
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         uses: google-github-actions/auth@v1
         with:
           credentials_json: ${{ secrets.GCP_CREDENTIALS }}
 
-      - name: Upload to Google Cloud Storage
+      - name: Upload to Google Cloud Storage (macOS)
         if: success() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         uses: google-github-actions/upload-cloud-storage@v1
         with:
-          path: |
-            dist\latest-mac.yml
-            dist\*.dmg
-            dist\*.zip
+          path: upload/
           destination: workspacemail-updates/darwin/
           parent: false
+
 
   create_release:
     needs: [build_on_windows, build_on_mac]
