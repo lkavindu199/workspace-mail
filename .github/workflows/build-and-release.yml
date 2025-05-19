@@ -83,7 +83,7 @@ jobs:
         with:
           path: dist\
           destination: workspacemail-updates/win/
-
+          parent: false
 
 
   # build_on_mac:
