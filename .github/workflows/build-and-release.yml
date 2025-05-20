@@ -113,6 +113,9 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install pnpm
+        run: npm install -g pnpm
+
       - name: Setup Python Virtual Environment
         run: |
           python3 -m venv venv
@@ -127,7 +130,6 @@ jobs:
         run: pnpm run build:mac
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-
       - name: List release folder
         run: ls -la dist/
 
