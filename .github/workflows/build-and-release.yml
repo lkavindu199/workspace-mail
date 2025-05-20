@@ -2,7 +2,7 @@ name: Build And Release
 on:
   push:
     tags:
-      - 'v*' # Triggers on version tags (v1.0.0)
+      - 'v*'
   pull_request:
     types: [review_requested]
 
@@ -19,6 +19,7 @@ jobs:
       - name: Clean version string
         run: |
           echo "CLEAN_VERSION=${APP_VERSION#v}" >> $GITHUB_ENV
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -29,30 +30,32 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Dependencies
-        run: npm install --prefer-offline --legacy-peer-deps
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install Dependencies with pnpm
+        run: pnpm install --prefer-offline
 
       - name: Set version and build number
         id: versioning
         shell: pwsh
         run: |
-          npm run bump-version
+          pnpm bump-version
           $appVersion = node -p "require('./package.json').version"
           $buildNumber = node -p "require('./package.json').build.extraMetadata.buildNumber"
-          # Try to get previous tag, suppress error output
           $prevTag = git describe --tags --abbrev=0 HEAD^ 2>$null
           if (-not $prevTag) { $prevTag = $null }
           if ($prevTag) {
             $releaseNotes = git log --pretty=format:'- %s' "$prevTag..HEAD"
           } else {
-            # No previous tag, get all commits
             $releaseNotes = git log --pretty=format:'- %s'
           }
           echo "APP_VERSION=$appVersion" >> $env:GITHUB_ENV
           echo "BUILD_NUMBER=$buildNumber" >> $env:GITHUB_ENV
           echo "RELEASE_NOTES=$releaseNotes" >> $env:GITHUB_ENV
+
       - name: Build Windows package
-        run: npm run build:win
+        run: pnpm run build:win
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           APP_VERSION: ${{ env.APP_VERSION }}
@@ -100,7 +103,7 @@ jobs:
       - name: Cache Node.js dependencies
         uses: actions/cache@v4
         with:
-          path: ~/.npm
+          path: ~/.pnpm
           key: mac-node-${{ hashFiles('package-lock.json') }}
           restore-keys: |
             mac-node-
@@ -118,10 +121,10 @@ jobs:
           echo "$(pwd)/venv/bin" >> $GITHUB_PATH
 
       - name: Install Dependencies
-        run: npm install --prefer-offline --legacy-peer-deps
+        run: pnpm install --prefer-offline
 
       - name: Build with auto-update support
-        run: npm run build:mac
+        run: pnpm run build:mac
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
@@ -161,7 +164,7 @@ jobs:
           path: upload/
           destination: workspacemail-updates/darwin/
           parent: false
-
+          process_gcloudignore: false
 
   create_release:
     needs: [build_on_windows, build_on_mac]

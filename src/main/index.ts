@@ -4,7 +4,7 @@ import {
   shell,
   Menu,
   MenuItem,
-  // session,
+  session,
   WebContentsView,
   WebContents,
   ContextMenuParams,
@@ -45,6 +45,9 @@ dotenv.config()
 
 let isUpdateDownloaded = false;
 let shouldInstallOnQuit = false;
+let isOnline = true;
+let lastOnlineStatus = true;
+
 const store = new Store()
 
 const algorithm = 'aes-256-cbc'
@@ -108,6 +111,50 @@ function decryptPassword(encrypted: string): string {
   }
 }
 
+function monitorNetworkConnection() {
+  const onlineStatusPoll = setInterval(async () => {
+    try {
+      // Try to fetch a small file from a reliable server
+      await fetch('https://www.google.com/favicon.ico', { method: 'HEAD' });
+      isOnline = true;
+    } catch (error) {
+      isOnline = false;
+    }
+
+    // Only notify if status changed
+    if (isOnline !== lastOnlineStatus) {
+      lastOnlineStatus = isOnline;
+
+      const mainWindow = WindowManager.getInstance().win;
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+
+      if (isOnline) {
+        // Connection restored
+        new Notification({
+          title: 'Connection Restored',
+          body: 'Internet connection has been restored.',
+          silent: false
+        }).show();
+
+        // Refresh the app
+        WindowManager.getInstance().refreshAll();
+      } else {
+        // Connection lost
+        new Notification({
+          title: 'Connection Lost',
+          body: 'No internet connection detected.',
+          silent: false
+        }).show();
+      }
+    }
+  }, 5000); // Check every 5 seconds
+
+  // Clean up on app quit
+  app.on('before-quit', () => {
+    clearInterval(onlineStatusPoll);
+  });
+}
+
 function createAppMenu(
   createAboutWindow: () => void,
   createSettingsWindow: () => void,
@@ -134,17 +181,61 @@ function createAppMenu(
         {
           label: 'Check for Updates',
           click: () => {
-            autoUpdater.checkForUpdates().catch(err => {
-              Sentry.captureException(err)
-              console.error('Manual update check failed:', err);
-              const mainWindow = WindowManager.getInstance().win;
-              dialog.showMessageBox(mainWindow, {
-                type: 'error',
-                title: 'Update Error',
-                message: 'Failed to check for updates!',
-                buttons: ['OK'],
-              });
+            const mainWindow = WindowManager.getInstance().win;
+            const checkingNotification = new Notification({
+              title: 'Checking for Updates',
+              body: 'Looking for the latest version...'
             });
+            checkingNotification.show();
+
+            autoUpdater.checkForUpdates()
+              .then((result) => {
+                if (!result) {
+                  // No result returned (might happen with some providers)
+                  throw new Error('No update information received');
+                }
+
+                const currentVersion = app.getVersion();
+                const availableVersion = result.updateInfo.version;
+
+                if (availableVersion !== currentVersion) {
+                  new Notification({
+                    title: 'Update Available',
+                    body: `Version ${availableVersion} is available! (Current: ${currentVersion})`
+                  }).show();
+
+                  // Optional: Show dialog with more details
+                  dialog.showMessageBox(mainWindow, {
+                    type: 'info',
+                    title: 'Update Available',
+                    message: `A new version (${availableVersion}) is available!`,
+                    detail: `You're currently running version ${currentVersion}. The update will be downloaded automatically.`,
+                    buttons: ['OK']
+                  });
+                } else {
+                  new Notification({
+                    title: 'Up to Date',
+                    body: `You're already running the latest version (${currentVersion})`
+                  }).show();
+                }
+              })
+              .catch(err => {
+                Sentry.captureException(err);
+                console.error('Manual update check failed:', err);
+
+                new Notification({
+                  title: 'Update Error',
+                  body: 'Failed to check for updates!'
+                }).show();
+
+                dialog.showMessageBox(mainWindow, {
+                  type: 'error',
+                  title: 'Update Error',
+                  message: 'Failed to check for updates!',
+                  detail: err.message,
+                  buttons: ['OK'],
+                });
+              });
           }
         }
 
@@ -243,11 +334,12 @@ function createWebView(
   x: number,
   y: number,
   width: number,
-  height: number
+  height: number,
+  id?: string,
 ): WebContentsView {
   const preloadPath = path.join(__dirname, '../preload/index.js')
 
-  console.log('Creating WebView with URL:', rendererUrl)
+  console.log('Creating WebView with URL:', rendererUrl, '  id', id)
   if (rendererUrl == 'modal') {
     rendererUrl = getRendererUrl('modal')
   }
@@ -258,7 +350,7 @@ function createWebView(
       nodeIntegration: false,
       sandbox: true,
       spellcheck: true,
-      partition: `persist:tab-${crypto.randomUUID()}`
+      partition: `persist:tab-${id || crypto.randomUUID()}`
     }
   })
 
@@ -381,11 +473,237 @@ class BaseWindow extends BrowserWindow {
     super(options)
   }
 }
+interface Tab {
+  id: string;
+  url?: string;
+  username?: string;
+  password?: string;
+}
+
+interface LoginState {
+  retryCount: number;
+  isHandling: boolean;
+  wasLoggedIn: boolean;
+  lastUrl?: string;
+  loginPageTimer?: NodeJS.Timeout;
+  autoLoginInterval?: NodeJS.Timeout;
+}
 
 class WindowManager {
-  private static instance: WindowManager
-  public win: BaseWindow
-  public views: WebContentsView[] = []
+  private static instance: WindowManager;
+  public win: BaseWindow;
+  public views: WebContentsView[] = [];
+  private loginStates: Map<string, LoginState> = new Map();
+
+  private setupUrlChangeMonitoring(view: WebContentsView): void {
+    const webContents = view.webContents;
+    const tabId = view['id']?.replace('tab-', '');
+    if (!tabId) return;
+
+    if (!this.loginStates) {
+      this.loginStates = new Map<string, {
+    retryCount: number;
+    isHandling: boolean;
+    wasLoggedIn: boolean;
+    lastUrl?: string;
+    loginPageTimer?: NodeJS.Timeout;
+    autoLoginInterval?: NodeJS.Timeout;
+      }>();
+    }
+
+    if (!this.loginStates.has(tabId)) {
+      this.loginStates.set(tabId, {
+        retryCount: 0,
+        isHandling: false,
+        wasLoggedIn: false,
+      });
+    }
+
+    const urlChangeHandler = async (_event: Electron.Event, url: string) => {
+      if (!tabId) return;
+
+      console.log(`URL changed for tab ${tabId}:`, url);
+      const state = this.loginStates.get(tabId);
+      if (!state) return;
+
+      state.lastUrl = url;
+      this.loginStates.set(tabId, state);
+
+      if (!url.includes('/root#/login')) {
+        if (state.loginPageTimer) {
+          clearTimeout(state.loginPageTimer);
+          state.loginPageTimer = undefined;
+        }
+        if (state.autoLoginInterval) {
+          clearInterval(state.autoLoginInterval);
+          state.autoLoginInterval = undefined;
+        }
+      }
+
+      if (url.includes('/root#/email')) {
+        console.log(`[${tabId}] User successfully logged in.`);
+        state.wasLoggedIn = true;
+        state.retryCount = 0;
+
+        if (state.loginPageTimer) {
+          clearTimeout(state.loginPageTimer);
+          state.loginPageTimer = undefined;
+        }
+        if (state.autoLoginInterval) {
+          clearInterval(state.autoLoginInterval);
+          state.autoLoginInterval = undefined;
+        }
+        this.loginStates.set(tabId, state);
+        return;
+      }
+
+      if (url.includes('/interface/autologin')) {
+        console.log(`[${tabId}] Auto-login redirect detected - allowing to proceed`);
+        return;
+      }
+
+      if (url.includes('/root#/login') && state.wasLoggedIn) {
+        console.log(`[${tabId}] Detected logout. Resetting login state.`);
+        state.wasLoggedIn = false;
+        state.retryCount = 0;
+        this.loginStates.set(tabId, state);
+        return;
+      }
+
+      if (!url.includes('squareworkspace.com')) {
+        console.log(`[${tabId}] Navigated outside app - resetting login state.`);
+        if (state.loginPageTimer) {
+          clearTimeout(state.loginPageTimer);
+          state.loginPageTimer = undefined;
+        }
+        if (state.autoLoginInterval) {
+          clearInterval(state.autoLoginInterval);
+          state.autoLoginInterval = undefined;
+        }
+        this.loginStates.delete(tabId);
+        return;
+      }
+
+      if (url.includes('/root#/login') && !state.wasLoggedIn) {
+        if (state.isHandling) {
+          console.log(`[${tabId}] Already processing login - skipping`);
+          return;
+        }
+
+        if (state.retryCount >= 3) {
+          console.warn(`[${tabId}] Auto-login retry limit reached.`);
+          return;
+        }
+
+        if (!state.loginPageTimer) {
+          console.log(`[${tabId}] Starting 30-second timer before auto-login`);
+          state.loginPageTimer = setTimeout(() => {
+            if (state.lastUrl?.includes('/root#/login') && !state.wasLoggedIn) {
+              this.tryAutoLogin(tabId, webContents);
+            }
+          }, 30000);
+          this.loginStates.set(tabId, state);
+        }
+      }
+    };
+
+    // Attach event listeners
+    webContents.on('did-navigate', urlChangeHandler);
+    webContents.on('did-navigate-in-page', urlChangeHandler);
+
+    // Clean up on tab close
+    webContents.once('destroyed', () => {
+      const state = this.loginStates.get(tabId);
+      if (state) {
+        if (state.loginPageTimer) {
+          clearTimeout(state.loginPageTimer);
+          state.loginPageTimer = undefined;
+        }
+        if (state.autoLoginInterval) {
+          clearInterval(state.autoLoginInterval);
+          state.autoLoginInterval = undefined;
+        }
+      }
+      webContents.off('did-navigate', urlChangeHandler);
+      webContents.off('did-navigate-in-page', urlChangeHandler);
+      this.loginStates.delete(tabId);
+    });
+  }
+
+  private async tryAutoLogin(tabId: string, webContents: Electron.WebContents) {
+    const state = this.loginStates.get(tabId);
+    if (!state || state.isHandling || state.wasLoggedIn || state.retryCount >= 3) return;
+
+    const savedTabs = store.get('tabs', []) as Tab[];
+    const tab = savedTabs.find(t => t.id === tabId);
+    if (!tab || !tab.username || !tab.password) {
+      console.warn(`[${tabId}] Missing tab credentials - skipping auto-login.`);
+      return;
+    }
+
+    state.isHandling = true;
+    state.retryCount++;
+    this.loginStates.set(tabId, state);
+
+    try {
+      console.log(`[${tabId}] Attempting auto-login (Retry #${state.retryCount}) for: ${tab.username}`);
+
+      const authenticatedUrl = await this.authenticateAccount(tab.username, tab.password);
+
+      if (authenticatedUrl) {
+        console.log(`[${tabId}] Auto-login successful. Redirecting...`);
+
+        setTimeout(() => {
+          if (!webContents.isDestroyed()) {
+            webContents.loadURL(authenticatedUrl);
+          }
+        }, 500);
+
+        state.retryCount = 0;
+        state.wasLoggedIn = true;
+
+        if (state.loginPageTimer) {
+          clearTimeout(state.loginPageTimer);
+          state.loginPageTimer = undefined;
+        }
+        if (state.autoLoginInterval) {
+          clearInterval(state.autoLoginInterval);
+          state.autoLoginInterval = undefined;
+        }
+      } else {
+        console.warn(`[${tabId}] No authenticated URL returned.`);
+        this.setupAutoLoginInterval(tabId, webContents);
+      }
+    } catch (error) {
+      console.error(`[${tabId}] Auto-login error:`, error);
+      Sentry.captureException(error);
+      this.setupAutoLoginInterval(tabId, webContents);
+    } finally {
+      state.isHandling = false;
+      this.loginStates.set(tabId, state);
+    }
+  }
+
+  private setupAutoLoginInterval(tabId: string, webContents: Electron.WebContents) {
+    const state = this.loginStates.get(tabId);
+    if (!state || state.autoLoginInterval) return;
+
+    console.log(`[${tabId}] auto-login retry interval`);
+
+    state.autoLoginInterval = setInterval(() => {
+      if (state.lastUrl?.includes('/root#/login') && !state.wasLoggedIn && !state.isHandling) {
+        this.tryAutoLogin(tabId, webContents);
+      } else {
+        if (state.autoLoginInterval) {
+          clearInterval(state.autoLoginInterval);
+          state.autoLoginInterval = undefined;
+        }
+      }
+    }, 30000);
+
+    this.loginStates.set(tabId, state);
+  }
+
 
   private constructor() {
     this.win = new BaseWindow({
@@ -522,7 +840,8 @@ class WindowManager {
               urlToLoad = authenticatedUrl
               updatedTab.url = authenticatedUrl
             } else {
-              console.warn(`Authentication failed for tab ID: ${tab.id}, using saved URL.`)
+              console.warn(`Authentication failed for tab ID: ${tab.id}, using saved URL.`);
+              this.clearPartition(tab.id);
             }
           }
 
@@ -531,6 +850,7 @@ class WindowManager {
           console.error(`Error loading tab ID ${tab.id}:`, error)
           Sentry.captureException(error)
           updatedTabs.push(tab)
+          this.clearPartition(tab.id);
         }
       })
     )
@@ -540,15 +860,15 @@ class WindowManager {
 
     updatedTabs.forEach((tab) => {
       console.log('Loading tab:', tab)
-      const view = createWebView(tab.url || 'about:blank', 0, 55, width - 15, height - 120)
+      const view = createWebView(tab.url || 'about:blank', 0, 55, width - 15, height - 120, tab.id)
       view['id'] = `tab-${tab.id}`
       this.views.push(view)
       this.win.contentView.addChildView(view)
 
       handleIpc(view)
+      this.setupUrlChangeMonitoring(view)
       attachContextMenu(view.webContents)
       handleExternalLinks(view.webContents)
-
       // view.webContents.openDevTools({ mode: 'detach' })
     })
 
@@ -564,16 +884,18 @@ class WindowManager {
 
   private async authenticateAccount(
     email: string,
-    encryptedPassword: string
+    encryptedPassword: string,
+    retryCount = 0
   ): Promise<string | null> {
-    const loginUrl = 'https://mail.squareworkspace.com/api/v1/auth/authenticate-user'
+    const loginUrl = 'https://mail.squareworkspace.com/api/v1/auth/authenticate-user';
+    const MAX_RETRIES = 2;
 
-    let password: string
+    let password: string;
     try {
-      password = decryptPassword(encryptedPassword)
+      password = decryptPassword(encryptedPassword);
     } catch (error) {
-      console.log('Failed to decrypt password:', error)
-      return null
+      console.log('Failed to decrypt password:', error);
+      return null;
     }
 
     const loginData = {
@@ -581,35 +903,67 @@ class WindowManager {
       password: password,
       teamWorkspace: false,
       retrieveAutoLoginToken: true
-    }
+    };
 
     try {
-      console.log('Authenticating:', email)
+      console.log('Authenticating:', email);
 
       const response = await fetch(loginUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(loginData)
-      })
+      });
 
-      const result = await response.json()
+      const result = await response.json();
 
       if (!response.ok) {
-        console.error(`Authentication failed (HTTP ${response.status}):`, result.message)
-        Sentry.captureException(result.message)
-        return null
+        console.error(`Authentication failed (HTTP ${response.status}):`, result.message);
+        Sentry.captureException(result.message);
+
+        if (retryCount < MAX_RETRIES) {
+          console.log(`Retrying authentication (attempt ${retryCount + 1})`);
+          return this.authenticateAccount(email, encryptedPassword, retryCount + 1);
+        }
+
+        return null;
       }
 
       if (result.autoLoginUrl) {
-        return result.autoLoginUrl
+        return result.autoLoginUrl;
       } else {
-        console.log('Authentication successful but no autoLoginUrl received.')
-        return null
+        console.log('Authentication successful but no autoLoginUrl received.');
+        return null;
       }
     } catch (error) {
-      Sentry.captureException(error)
-      console.error('Error during authentication:', error)
-      return null
+      Sentry.captureException(error);
+      console.error('Error during authentication:', error);
+
+      // Retry logic
+      if (retryCount < MAX_RETRIES) {
+        console.log(`Retrying authentication (attempt ${retryCount + 1})`);
+        return this.authenticateAccount(email, encryptedPassword, retryCount + 1);
+      }
+
+      return null;
+    }
+  }
+
+  // Add this method to clear partition
+  private clearPartition(tabId: string): void {
+    try {
+      const partitionName = `persist:tab-${tabId}`;
+      const sessionInstance = session.fromPartition(partitionName)
+
+      // Clear all storage and cache
+      sessionInstance.clearStorageData();
+      sessionInstance.clearCache();
+      sessionInstance.clearAuthCache();
+      sessionInstance.clearHostResolverCache();
+
+      console.log(`Cleared partition for tab ${tabId}`);
+    } catch (error) {
+      console.error(`Error clearing partition for tab ${tabId}:`, error);
+      Sentry.captureException(error);
     }
   }
 
@@ -796,11 +1150,12 @@ class WindowManager {
             if (existingView) {
               view = existingView
             } else {
-              view = createWebView(tab.url || 'about:blank', 0, 55, width - 15, height - 120)
+              view = createWebView(tab.url || 'about:blank', 0, 55, width - 15, height - 120, tab.id)
               view['id'] = viewId
               this.views.push(view)
               this.win.contentView.addChildView(view)
               handleIpc(view)
+              this.setupUrlChangeMonitoring(view)
               attachContextMenu(view.webContents)
               handleExternalLinks(view.webContents)
             }
@@ -845,11 +1200,12 @@ class WindowManager {
       existingView.setBounds({ x: 0, y: 55, width: width - 15, height: height - 120 })
       handleIpc(existingView)
     } else {
-      const view = createWebView(finalUrl, 0, 55, width, height)
+      const view = createWebView(finalUrl, 0, 55, width, height, id)
       view['id'] = `tab-${id}`
       this.views.push(view)
       this.win.contentView.addChildView(view)
       handleIpc(view)
+      this.setupUrlChangeMonitoring(view)
       attachContextMenu(view.webContents)
       handleExternalLinks(view.webContents)
     }
@@ -1084,11 +1440,11 @@ function setupAutoUpdater() {
   }
 
   if (process.platform === 'win32') {
-    autoUpdater.setFeedURL(`${baseUpdateUrl}/win/${process.arch}`);
+    autoUpdater.setFeedURL(`${baseUpdateUrl}/win`);
   } else if (process.platform === 'darwin') {
-    autoUpdater.setFeedURL(`${baseUpdateUrl}/darwin/${process.arch}`);
+    autoUpdater.setFeedURL(`${baseUpdateUrl}/darwin`);
   } else if (process.platform === 'linux') {
-    autoUpdater.setFeedURL(`${baseUpdateUrl}/linux/${process.arch}`);
+    autoUpdater.setFeedURL(`${baseUpdateUrl}/linux`);
   }
 
   attachAutoUpdateListeners();
@@ -1099,10 +1455,17 @@ function setupAutoUpdater() {
     return;
   }
 
-  autoUpdater.checkForUpdates();
+  // Initial check
+  autoUpdater.checkForUpdates().catch(err => {
+    log.error('Initial update check failed:', err);
+  });
+
+  // Periodic checks
   setInterval(() => {
-    autoUpdater.checkForUpdates();
-  }, 12 * 60 * 60 * 1000);
+    autoUpdater.checkForUpdates().catch(err => {
+      log.error('Periodic update check failed:', err);
+    });
+  }, 12 * 60 * 60 * 1000); // 12 hours
 }
 
 function attachAutoUpdateListeners() {
@@ -1178,7 +1541,7 @@ function attachAutoUpdateListeners() {
 // App Initialization
 app.whenReady().then(() => {
   const mainWindowManager = WindowManager.getInstance()
-
+  monitorNetworkConnection();
   setupAutoUpdater();
   app.on('window-all-closed', () => {
     const hasOtherWindows = BrowserWindow.getAllWindows().some((win) => {

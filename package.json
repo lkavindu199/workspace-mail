@@ -80,7 +80,7 @@
     "appId": "com.example.workspacemail",
     "productName": "Workspace Mail",
     "extraMetadata": {
-      "buildNumber": "1747650890"
+      "buildNumber": "3"
     },
     "protocols": {
       "name": "mailto",
@@ -106,13 +106,6 @@
       "target": [
         {
           "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        },
-        {
-          "target": "zip",
           "arch": [
             "x64",
             "arm64"
