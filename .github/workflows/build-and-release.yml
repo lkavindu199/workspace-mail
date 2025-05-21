@@ -154,14 +154,12 @@ jobs:
           name: mac-artifacts
           path: |
             dist/latest-mac.yml
-            dist/*.dmg
-            dist/*.zip
+            dist/**/*.dmg
       - name: Prepare files for upload (macOS)
         run: |
           mkdir -p upload
           cp dist/latest-mac.yml upload/ 2>/dev/null || true
-          cp dist/*.dmg upload/ 2>/dev/null || true
-          cp dist/*.zip upload/ 2>/dev/null || true
+          cp dist/**/*.dmg upload/ 2>/dev/null || true
 
       - name: Debug uploaded folder (macOS)
         run: |
