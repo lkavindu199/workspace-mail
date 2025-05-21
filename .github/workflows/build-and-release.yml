@@ -125,6 +125,24 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --prefer-offline
 
+      - name: Set version and build number
+        id: versioning
+        shell: pwsh
+        run: |
+          pnpm bump-version
+          $appVersion = node -p "require('./package.json').version"
+          $buildNumber = node -p "require('./package.json').build.extraMetadata.buildNumber"
+          $prevTag = git describe --tags --abbrev=0 HEAD^ 2>$null
+          if (-not $prevTag) { $prevTag = $null }
+          if ($prevTag) {
+            $releaseNotes = git log --pretty=format:'- %s' "$prevTag..HEAD"
+          } else {
+            $releaseNotes = git log --pretty=format:'- %s'
+          }
+          echo "APP_VERSION=$appVersion" >> $env:GITHUB_ENV
+          echo "BUILD_NUMBER=$buildNumber" >> $env:GITHUB_ENV
+          echo "RELEASE_NOTES=$releaseNotes" >> $env:GITHUB_ENV
+
       - name: Build with auto-update support
         run: pnpm run build:mac
       - name: List release folder
