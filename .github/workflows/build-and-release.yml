@@ -168,6 +168,9 @@ jobs:
   create_release:
     needs: [build_on_windows, build_on_mac]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -201,4 +204,4 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: ${{ steps.filtered_files.outputs.files }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
