@@ -4,6 +4,7 @@ const path = require('path');
 function createSymlinks(version, buildNumber, architectures) {
   const artifactsDir = path.join(__dirname, '../dist');
 
+  // Create latest DMG copies for each architecture
   architectures.forEach(arch => {
     const originalFilename = `workspace-mail-${version}-${buildNumber}-${arch}-setup.dmg`;
     const latestFilename = `latest-mac-${arch}.dmg`;
@@ -26,6 +27,7 @@ function createSymlinks(version, buildNumber, architectures) {
     }
   });
 
+  // Create universal latest-mac.dmg if both architectures exist
   const x64Path = path.join(artifactsDir, `latest-mac-x64.dmg`);
   const arm64Path = path.join(artifactsDir, `latest-mac-arm64.dmg`);
   const universalLatestPath = path.join(artifactsDir, 'latest-mac.dmg');
@@ -35,6 +37,7 @@ function createSymlinks(version, buildNumber, architectures) {
       if (fs.existsSync(universalLatestPath)) {
         fs.unlinkSync(universalLatestPath);
       }
+      // Copy x64 version as the universal one (or you could implement merging logic)
       fs.copyFileSync(x64Path, universalLatestPath);
       console.log(`Created universal latest-mac.dmg`);
     } catch (err) {
@@ -42,6 +45,7 @@ function createSymlinks(version, buildNumber, architectures) {
     }
   }
 
+  // Remove ZIP files if they exist
   architectures.forEach(arch => {
     const zipFile = path.join(artifactsDir, `workspace-mail-${version}-${buildNumber}-${arch}-setup.zip`);
     if (fs.existsSync(zipFile)) {
@@ -52,7 +56,7 @@ function createSymlinks(version, buildNumber, architectures) {
 }
 
 if (require.main === module) {
-  const { version, buildNumber, architectures } = require('./bump-version')();
+  const { version, buildNumber, architectures } = require('./bump-version').updateVersion();
   createSymlinks(version, buildNumber, architectures);
 }
 
