@@ -153,12 +153,15 @@ jobs:
         with:
           name: mac-artifacts
           path: |
-            dist/
+            dist/latest-mac.yml
+            dist/*.dmg
       - name: Prepare files for upload (macOS)
         run: |
           mkdir -p upload
-          cp dist/ upload/ 2>/dev/null || true
-
+          cp dist/latest-mac.yml upload/
+          cp dist/latest-*-setup.dmg upload/ || true
+          cp dist/workspace-mail-*-arm64-setup.dmg upload/ || true
+          cp dist/workspace-mail-*-x64-setup.dmg upload/ || true
 
       - name: Debug uploaded folder (macOS)
         run: |
@@ -181,7 +184,7 @@ jobs:
           process_gcloudignore: false
 
   create_release:
-    needs: [ build_on_mac]
+    needs: [build_on_windows, build_on_mac]
     runs-on: ubuntu-latest
     permissions:
       contents: write
