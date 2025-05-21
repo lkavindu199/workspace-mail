@@ -191,31 +191,36 @@ function createAppMenu(
             autoUpdater.checkForUpdates()
               .then((result) => {
                 if (!result) {
-                  // No result returned (might happen with some providers)
                   throw new Error('No update information received');
                 }
 
                 const currentVersion = app.getVersion();
                 const availableVersion = result.updateInfo.version;
 
-                if (availableVersion !== currentVersion) {
+                // Extract build numbers
+                const currentBuildMatch = app.getVersion().match(/\d+$/); // Assuming version ends with build number
+                const availableBuildMatch = result.updateInfo.version.match(/\d+$/);
+
+                const currentBuild = currentBuildMatch ? parseInt(currentBuildMatch[0]) : 0;
+                const availableBuild = availableBuildMatch ? parseInt(availableBuildMatch[0]) : 0;
+
+                if (availableVersion !== currentVersion || availableBuild > currentBuild) {
                   new Notification({
                     title: 'Update Available',
-                    body: `Version ${availableVersion} is available! (Current: ${currentVersion})`
+                    body: `Version ${availableVersion} (build ${availableBuild}) is available! (Current: ${currentVersion} build ${currentBuild})`
                   }).show();
 
-                  // Optional: Show dialog with more details
                   dialog.showMessageBox(mainWindow, {
                     type: 'info',
                     title: 'Update Available',
-                    message: `A new version (${availableVersion}) is available!`,
-                    detail: `You're currently running version ${currentVersion}. The update will be downloaded automatically.`,
+                    message: `A new version (${availableVersion} build ${availableBuild}) is available!`,
+                    detail: `You're currently running version ${currentVersion} build ${currentBuild}. The update will be downloaded automatically.`,
                     buttons: ['OK']
                   });
                 } else {
                   new Notification({
                     title: 'Up to Date',
-                    body: `You're already running the latest version (${currentVersion})`
+                    body: `You're already running the latest version (${currentVersion} build ${currentBuild}).`
                   }).show();
                 }
               })
@@ -495,6 +500,194 @@ class WindowManager {
   public views: WebContentsView[] = [];
   private loginStates: Map<string, LoginState> = new Map();
 
+  // private setupUrlChangeMonitoring(view: WebContentsView): void {
+  //   const webContents = view.webContents;
+  //   const tabId = view['id']?.replace('tab-', '');
+  //   if (!tabId) return;
+
+  //   if (!this.loginStates) {
+  //     this.loginStates = new Map<string, {
+  //       retryCount: number;
+  //       isHandling: boolean;
+  //       wasLoggedIn: boolean;
+  //       lastUrl?: string;
+  //       loginPageTimer?: NodeJS.Timeout;
+  //       autoLoginInterval?: NodeJS.Timeout;
+  //     }>();
+  //   }
+
+  //   if (!this.loginStates.has(tabId)) {
+  //     this.loginStates.set(tabId, {
+  //       retryCount: 0,
+  //       isHandling: false,
+  //       wasLoggedIn: false,
+  //     });
+  //   }
+
+  //   const urlChangeHandler = async (_event: Electron.Event, url: string) => {
+  //     if (!tabId) return;
+
+  //     console.log(`URL changed for tab ${tabId}:`, url);
+  //     const state = this.loginStates.get(tabId);
+  //     if (!state) return;
+
+  //     state.lastUrl = url;
+  //     this.loginStates.set(tabId, state);
+
+  //     if (!url.includes('/root#/login')) {
+  //       if (state.loginPageTimer) {
+  //         clearTimeout(state.loginPageTimer);
+  //         state.loginPageTimer = undefined;
+  //       }
+  //       if (state.autoLoginInterval) {
+  //         clearInterval(state.autoLoginInterval);
+  //         state.autoLoginInterval = undefined;
+  //       }
+  //     }
+
+  //     if (url.includes('/root#/email')) {
+  //       console.log(`[${tabId}] User successfully logged in.`);
+  //       state.wasLoggedIn = true;
+  //       state.retryCount = 0;
+
+  //       if (state.loginPageTimer) {
+  //         clearTimeout(state.loginPageTimer);
+  //         state.loginPageTimer = undefined;
+  //       }
+  //       if (state.autoLoginInterval) {
+  //         clearInterval(state.autoLoginInterval);
+  //         state.autoLoginInterval = undefined;
+  //       }
+  //       this.loginStates.set(tabId, state);
+  //       return;
+  //     }
+
+  //     if (url.includes('/interface/autologin')) {
+  //       console.log(`[${tabId}] Auto-login redirect detected - allowing to proceed`);
+  //       return;
+  //     }
+
+  //     if (url.includes('/root#/login') && state.wasLoggedIn) {
+  //       console.log(`[${tabId}] Detected logout. Resetting login state.`);
+  //       state.wasLoggedIn = false;
+  //       state.retryCount = 0;
+  //       this.loginStates.set(tabId, state);
+  //       return;
+  //     }
+
+  //     if (!url.includes('squareworkspace.com')) {
+  //       console.log(`[${tabId}] Navigated outside app - resetting login state.`);
+  //       if (state.loginPageTimer) {
+  //         clearTimeout(state.loginPageTimer);
+  //         state.loginPageTimer = undefined;
+  //       }
+  //       if (state.autoLoginInterval) {
+  //         clearInterval(state.autoLoginInterval);
+  //         state.autoLoginInterval = undefined;
+  //       }
+  //       this.loginStates.delete(tabId);
+  //       return;
+  //     }
+
+  //     if (url.includes('/root#/login') && !state.wasLoggedIn) {
+  //       if (state.isHandling) {
+  //         console.log(`[${tabId}] Already processing login - skipping`);
+  //         return;
+  //       }
+
+  //       if (state.retryCount >= 3) {
+  //         console.warn(`[${tabId}] Auto-login retry limit reached.`);
+  //         return;
+  //       }
+
+  //       if (!state.loginPageTimer) {
+  //         console.log(`[${tabId}] Starting 30-second timer before auto-login`);
+  //         state.loginPageTimer = setTimeout(() => {
+  //           if (state.lastUrl?.includes('/root#/login') && !state.wasLoggedIn) {
+  //             this.tryAutoLogin(tabId, webContents);
+  //           }
+  //         }, 30000);
+  //         this.loginStates.set(tabId, state);
+  //       }
+  //     }
+  //   };
+
+  //   // Attach event listeners
+  //   webContents.on('did-navigate', urlChangeHandler);
+  //   webContents.on('did-navigate-in-page', urlChangeHandler);
+
+  //   // Clean up on tab close
+  //   webContents.once('destroyed', () => {
+  //     const state = this.loginStates.get(tabId);
+  //     if (state) {
+  //       if (state.loginPageTimer) {
+  //         clearTimeout(state.loginPageTimer);
+  //         state.loginPageTimer = undefined;
+  //       }
+  //       if (state.autoLoginInterval) {
+  //         clearInterval(state.autoLoginInterval);
+  //         state.autoLoginInterval = undefined;
+  //       }
+  //     }
+  //     webContents.off('did-navigate', urlChangeHandler);
+  //     webContents.off('did-navigate-in-page', urlChangeHandler);
+  //     this.loginStates.delete(tabId);
+  //   });
+  // }
+
+  // private async tryAutoLogin(tabId: string, webContents: Electron.WebContents) {
+  //   const state = this.loginStates.get(tabId);
+  //   if (!state || state.isHandling || state.wasLoggedIn || state.retryCount >= 3) return;
+
+  //   const savedTabs = store.get('tabs', []) as Tab[];
+  //   const tab = savedTabs.find(t => t.id === tabId);
+  //   if (!tab || !tab.username || !tab.password) {
+  //     console.warn(`[${tabId}] Missing tab credentials - skipping auto-login.`);
+  //     return;
+  //   }
+
+  //   state.isHandling = true;
+  //   state.retryCount++;
+  //   this.loginStates.set(tabId, state);
+
+  //   try {
+  //     console.log(`[${tabId}] Attempting auto-login (Retry #${state.retryCount}) for: ${tab.username}`);
+
+  //     const authenticatedUrl = await this.authenticateAccount(tab.username, tab.password);
+
+  //     if (authenticatedUrl) {
+  //       console.log(`[${tabId}] Auto-login successful. Redirecting...`);
+
+  //       setTimeout(() => {
+  //         if (!webContents.isDestroyed()) {
+  //           webContents.loadURL(authenticatedUrl);
+  //         }
+  //       }, 500);
+
+  //       state.retryCount = 0;
+  //       state.wasLoggedIn = true;
+
+  //       if (state.loginPageTimer) {
+  //         clearTimeout(state.loginPageTimer);
+  //         state.loginPageTimer = undefined;
+  //       }
+  //       if (state.autoLoginInterval) {
+  //         clearInterval(state.autoLoginInterval);
+  //         state.autoLoginInterval = undefined;
+  //       }
+  //     } else {
+  //       console.warn(`[${tabId}] No authenticated URL returned.`);
+  //       this.setupAutoLoginInterval(tabId, webContents);
+  //     }
+  //   } catch (error) {
+  //     console.error(`[${tabId}] Auto-login error:`, error);
+  //     Sentry.captureException(error);
+  //     this.setupAutoLoginInterval(tabId, webContents);
+  //   } finally {
+  //     state.isHandling = false;
+  //     this.loginStates.set(tabId, state);
+  //   }
+  // }
   private setupUrlChangeMonitoring(view: WebContentsView): void {
     const webContents = view.webContents;
     const tabId = view['id']?.replace('tab-', '');
@@ -502,12 +695,12 @@ class WindowManager {
 
     if (!this.loginStates) {
       this.loginStates = new Map<string, {
-    retryCount: number;
-    isHandling: boolean;
-    wasLoggedIn: boolean;
-    lastUrl?: string;
-    loginPageTimer?: NodeJS.Timeout;
-    autoLoginInterval?: NodeJS.Timeout;
+        retryCount: number;
+        isHandling: boolean;
+        wasLoggedIn: boolean;
+        lastUrl?: string;
+        loginPageTimer?: NodeJS.Timeout;
+        autoLoginInterval?: NodeJS.Timeout;
       }>();
     }
 
@@ -553,6 +746,7 @@ class WindowManager {
           clearInterval(state.autoLoginInterval);
           state.autoLoginInterval = undefined;
         }
+
         this.loginStates.set(tabId, state);
         return;
       }
@@ -563,9 +757,23 @@ class WindowManager {
       }
 
       if (url.includes('/root#/login') && state.wasLoggedIn) {
-        console.log(`[${tabId}] Detected logout. Resetting login state.`);
+        console.log(`[${tabId}] Detected logout. Will attempt auto-login in 30 seconds.`);
         state.wasLoggedIn = false;
         state.retryCount = 0;
+        this.loginStates.set(tabId, state);
+
+        // new Notification({
+        //   title: 'Logged Out',
+        //   body: 'You have been logged out. Will attempt to log back in 30 seconds...',
+        //   silent: false
+        // }).show();
+
+        state.loginPageTimer = setTimeout(() => {
+          if (state.lastUrl?.includes('/root#/login') && !state.wasLoggedIn) {
+            this.tryAutoLogin(tabId, webContents);
+          }
+        }, 30000);
+
         this.loginStates.set(tabId, state);
         return;
       }
@@ -592,11 +800,25 @@ class WindowManager {
 
         if (state.retryCount >= 3) {
           console.warn(`[${tabId}] Auto-login retry limit reached.`);
+
+          new Notification({
+            title: 'Auto-Login Failed',
+            body: 'Maximum retry attempts reached. Please check your credentials.',
+            silent: false
+          }).show();
+
           return;
         }
 
         if (!state.loginPageTimer) {
           console.log(`[${tabId}] Starting 30-second timer before auto-login`);
+
+          // new Notification({
+          //   title: 'Auto-Login Starting',
+          //   body: 'Attempting to log in automatically in 30 seconds...',
+          //   silent: false
+          // }).show();
+
           state.loginPageTimer = setTimeout(() => {
             if (state.lastUrl?.includes('/root#/login') && !state.wasLoggedIn) {
               this.tryAutoLogin(tabId, webContents);
@@ -607,11 +829,9 @@ class WindowManager {
       }
     };
 
-    // Attach event listeners
     webContents.on('did-navigate', urlChangeHandler);
     webContents.on('did-navigate-in-page', urlChangeHandler);
 
-    // Clean up on tab close
     webContents.once('destroyed', () => {
       const state = this.loginStates.get(tabId);
       if (state) {
@@ -640,6 +860,8 @@ class WindowManager {
       console.warn(`[${tabId}] Missing tab credentials - skipping auto-login.`);
       return;
     }
+
+    this.clearPartition(tabId);
 
     state.isHandling = true;
     state.retryCount++;
@@ -677,13 +899,13 @@ class WindowManager {
     } catch (error) {
       console.error(`[${tabId}] Auto-login error:`, error);
       Sentry.captureException(error);
+
       this.setupAutoLoginInterval(tabId, webContents);
     } finally {
       state.isHandling = false;
       this.loginStates.set(tabId, state);
     }
   }
-
   private setupAutoLoginInterval(tabId: string, webContents: Electron.WebContents) {
     const state = this.loginStates.get(tabId);
     if (!state || state.autoLoginInterval) return;
@@ -1465,12 +1687,17 @@ function setupAutoUpdater() {
     autoUpdater.checkForUpdates().catch(err => {
       log.error('Periodic update check failed:', err);
     });
-  }, 12 * 60 * 60 * 1000); // 12 hours
+  }, 12 * 60 * 60 * 1000);
 }
 
 function attachAutoUpdateListeners() {
   autoUpdater.on('checking-for-update', () => {
     log.info('Checking for updates...');
+    new Notification({
+      title: 'Auto-Login Starting',
+      body: 'Attempting to log in automatically in 30 seconds...',
+      silent: false
+    }).show();
   });
 
   autoUpdater.on('update-available', (info) => {
@@ -1495,6 +1722,9 @@ function attachAutoUpdateListeners() {
     isUpdateDownloaded = true;
     shouldInstallOnQuit = false;
 
+    const newBuildMatch = info.version.match(/\d+$/);
+    const newBuild = newBuildMatch ? newBuildMatch[0] : '0';
+
     createAppMenu(
       createAboutWindow,
       createSettingsWindow,
@@ -1506,7 +1736,7 @@ function attachAutoUpdateListeners() {
 
     const notification = {
       title: 'Update Ready',
-      body: `Version ${info.version} is ready to install. Click to restart.`,
+      body: `Version ${info.version} (build ${newBuild}) is ready to install. Click to restart.`,
       silent: true
     };
 

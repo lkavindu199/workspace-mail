@@ -57,7 +57,6 @@ jobs:
       - name: Build Windows package
         run: pnpm run build:win
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           APP_VERSION: ${{ env.APP_VERSION }}
           BUILD_NUMBER: ${{ env.BUILD_NUMBER }}
 
@@ -128,8 +127,6 @@ jobs:
 
       - name: Build with auto-update support
         run: pnpm run build:mac
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
       - name: List release folder
         run: ls -la dist/
 
@@ -204,4 +201,4 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: ${{ steps.filtered_files.outputs.files }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
