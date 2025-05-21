@@ -184,7 +184,7 @@ jobs:
           process_gcloudignore: false
 
   create_release:
-    needs: [build_on_windows, build_on_mac]
+    needs: [build_on_mac]
     runs-on: ubuntu-latest
     permissions:
       contents: write
