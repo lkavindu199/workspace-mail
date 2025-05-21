@@ -153,7 +153,7 @@ jobs:
         with:
           name: mac-artifacts
           path: |
-            dist/**
+            dist/
       - name: Prepare files for upload (macOS)
         run: |
           mkdir -p upload
