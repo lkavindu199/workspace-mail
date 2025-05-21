@@ -5,18 +5,36 @@ function updateVersion() {
   const packageJsonPath = path.join(__dirname, '../package.json');
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 
-  // Get version from GitHub tag or use current version
   const tagVersion = process.env.GITHUB_REF?.replace(/^refs\/tags\/v?/, '');
   const newVersion = tagVersion || packageJson.version;
 
-  // Generate build number (timestamp)
-  const buildNumber = Math.floor(Date.now() / 1000).toString();
+  const githubRunNumber = process.env.GITHUB_RUN_NUMBER;
 
-  // Update package.json
+  const currentBuildNumber = parseInt(
+    packageJson?.build?.extraMetadata?.buildNumber || '0',
+    10
+  );
+
+  const buildNumber = githubRunNumber
+    ? githubRunNumber.toString()
+    : (currentBuildNumber + 1).toString();
+
   packageJson.version = newVersion;
   packageJson.build = packageJson.build || {};
   packageJson.build.extraMetadata = packageJson.build.extraMetadata || {};
   packageJson.build.extraMetadata.buildNumber = buildNumber;
+
+  const winArtifactName = `workspace-mail-${newVersion}-${buildNumber}-setup.\${ext}`;
+  const macArtifactName = `workspace-mail-${newVersion}-${buildNumber}-\${arch}-setup.\${ext}`;
+  const linuxArtifactName = `workspace-mail-${newVersion}-${buildNumber}-setup.\${ext}`;
+
+  packageJson.build.win = packageJson.build.win || {};
+  packageJson.build.mac = packageJson.build.mac || {};
+  packageJson.build.linux = packageJson.build.linux || {};
+
+  packageJson.build.win.artifactName = winArtifactName;
+  packageJson.build.mac.artifactName = macArtifactName;
+  packageJson.build.linux.artifactName = linuxArtifactName;
 
   fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
 
@@ -24,7 +42,6 @@ function updateVersion() {
   return { version: newVersion, buildNumber };
 }
 
-// Export for testing purposes
 if (require.main === module) {
   updateVersion();
 }

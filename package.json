@@ -99,11 +99,18 @@
     ],
     "directories": {
       "buildResources": "build"
-    },
-    "mac": {
-      "target": "dmg"
-    },
-    "afterPack": "./scripts/afterPack.js"
+    }
+  },
+  "mac": {
+    "target": [
+      {
+        "target": "default",
+        "arch": [
+          "universal"
+        ]
+      }
+    ],
+    "artifactName": "${name}-${version}-${buildNumber}-${arch}-setup.${ext}"
   },
   "win": {
     "icon": "icon.ico",
