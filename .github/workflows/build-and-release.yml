@@ -159,8 +159,8 @@ jobs:
         run: |
           mkdir -p upload
           cp dist/latest-mac.yml upload/
-          cp dist/workspace-mail-*-arm64-setup.dmg upload/ || true
-          cp dist/workspace-mail-*-x64-setup.dmg upload/ || true
+          cp dist/workspace-mail-*-arm64.dmg upload/ || true
+          cp dist/workspace-mail-*-x64.dmg upload/ || true
 
       - name: Debug uploaded folder (macOS)
         run: |

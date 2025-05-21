@@ -24,9 +24,9 @@ function updateVersion() {
   packageJson.build.extraMetadata = packageJson.build.extraMetadata || {};
   packageJson.build.extraMetadata.buildNumber = buildNumber;
 
-  const winArtifactName = `workspace-mail-${newVersion}-${buildNumber}-setup.\${ext}`;
-  const macArtifactName = `workspace-mail-${newVersion}-${buildNumber}-\${arch}-setup.\${ext}`;
-  const linuxArtifactName = `workspace-mail-${newVersion}-${buildNumber}-setup.\${ext}`;
+  const winArtifactName = `workspace-mail-${newVersion}-${buildNumber}.\${ext}`;
+  const macArtifactName = `workspace-mail-${newVersion}-${buildNumber}-\${arch}.\${ext}`;
+  const linuxArtifactName = `workspace-mail-${newVersion}-${buildNumber}.\${ext}`;
 
   packageJson.build.win = packageJson.build.win || {};
   packageJson.build.mac = packageJson.build.mac || {};

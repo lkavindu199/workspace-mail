@@ -15,15 +15,15 @@ extraMetadata:
   buildNumber: ${env.BUILD_NUMBER}
 win:
   executableName: com.workspacemail
-  artifactName: ${name}-${version}-${buildNumber}-setup.${ext}
+  artifactName: ${name}-${version}-${buildNumber}.${ext}
 nsis:
-  artifactName: ${name}-${version}-${buildNumber}-setup.${ext}
+  artifactName: ${name}-${version}-${buildNumber}.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 mac:
   entitlementsInherit: build/entitlements.mac.plist
-  artifactName: ${name}-${version}-${buildNumber}-${arch}-setup.${ext}
+  artifactName: ${name}-${version}-${buildNumber}-${arch}.${ext}
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
@@ -43,7 +43,7 @@ linux:
   maintainer: electronjs.org
   category: Utility
 appImage:
-  artifactName: ${name}-${version}-${buildNumber}-setup.${ext}
+  artifactName: ${name}-${version}-${buildNumber}.${ext}
 npmRebuild: false
 publish:
   provider: generic
