@@ -35,7 +35,6 @@ mac:
       arch:
         - x64
         - arm64
-        - universal
 linux:
   target:
     - AppImage

@@ -154,13 +154,11 @@ jobs:
           name: mac-artifacts
           path: |
             dist/latest-mac.yml
-            dist/latest-*.yml
             dist/*.dmg
       - name: Prepare files for upload (macOS)
         run: |
           mkdir -p upload
           cp dist/latest-mac.yml upload/
-          cp dist/latest-*.yml upload/ || true
           cp dist/workspace-mail-*-arm64-setup.dmg upload/ || true
           cp dist/workspace-mail-*-x64-setup.dmg upload/ || true
 

@@ -16,21 +16,29 @@ function createSymlinks(version, buildNumber, architectures) {
         if (fs.existsSync(latestPath)) {
           fs.unlinkSync(latestPath);
         }
-        fs.symlinkSync(originalFilename, latestPath);
-        console.log(`Created symlink: ${latestFilename} -> ${originalFilename}`);
+        fs.copyFileSync(originalPath, latestPath);
+        console.log(`Created latest copy: ${latestFilename}`);
       } catch (err) {
-        console.error(`Error creating symlink for ${arch}:`, err);
+        console.error(`Error creating latest copy for ${arch}:`, err);
       }
     } else {
-      console.warn(`Original file not found: ${originalFilename}`);
+      console.warn(`Original DMG not found: ${originalFilename}`);
+    }
+  });
+
+  architectures.forEach(arch => {
+    const zipFile = path.join(artifactsDir, `workspace-mail-${version}-${buildNumber}-${arch}-setup.zip`);
+    if (fs.existsSync(zipFile)) {
+      fs.unlinkSync(zipFile);
+      console.log(`Removed ZIP file: ${zipFile}`);
     }
   });
 }
 
+
 if (require.main === module) {
-  const { updateVersion } = require('./bump-version');
-  const { version, buildNumber, architectures } = updateVersion();
-  createSymlinks(version, buildNumber, architectures || ['x64', 'arm64']);
+  const { version, buildNumber } = require('./bump-version')();
+  createSymlinks(version, buildNumber);
 }
 
 module.exports = createSymlinks;
