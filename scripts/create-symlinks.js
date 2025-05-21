@@ -28,8 +28,9 @@ function createSymlinks(version, buildNumber, architectures) {
 }
 
 if (require.main === module) {
-  const { version, buildNumber, architectures } = require('./bump-version')();
-  createSymlinks(version, buildNumber, architectures);
+  const { updateVersion } = require('./bump-version');
+  const { version, buildNumber, architectures } = updateVersion();
+  createSymlinks(version, buildNumber, architectures || ['x64', 'arm64']);
 }
 
 module.exports = createSymlinks;
