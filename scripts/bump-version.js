@@ -39,7 +39,7 @@ function updateVersion() {
   fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
 
   console.log(`Updated version to ${newVersion} with build number ${buildNumber}`);
-  return { version: newVersion, buildNumber };
+  return { version: newVersion, buildNumber, architectures: ['x64', 'arm64'] };
 }
 
 if (require.main === module) {
