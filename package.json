@@ -101,31 +101,20 @@
       "buildResources": "build"
     },
     "mac": {
-      "icon": "icon.icns",
-      "category": "Email",
-      "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64",
-            "universal"
-          ]
-        }
-      ],
-      "artifactName": "workspace-mail-1.0.0-19-setup.${ext}"
+      "target": "dmg"
     },
-    "win": {
-      "icon": "icon.ico",
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "artifactName": "workspace-mail-1.0.0-19-setup.${ext}"
-    }
+    "afterPack": "./scripts/afterPack.js"
+  },
+  "win": {
+    "icon": "icon.ico",
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "artifactName": "workspace-mail-1.0.0-19-setup.${ext}"
   }
 }
