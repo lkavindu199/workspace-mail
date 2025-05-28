@@ -1773,11 +1773,10 @@ app.on('open-url', (event, url) => {
 })
 // App Initialization
 app.whenReady().then(() => {
-  const exePath = process.execPath
-  const got = app.setAsDefaultProtocolClient('mailto', exePath, [
-    path.resolve(process.argv[1])
-  ])
-  console.log('Protocol set:', got)
+const mailtoArg = process.argv.find(arg => arg.startsWith('mailto:'));
+  if (mailtoArg) {
+    console.log('Mailto link (Windows):', mailtoArg);
+  }
 
   const mainWindowManager = WindowManager.getInstance()
   monitorNetworkConnection();
