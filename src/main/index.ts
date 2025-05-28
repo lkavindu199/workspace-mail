@@ -1773,9 +1773,12 @@ app.on('open-url', (event, url) => {
 })
 // App Initialization
 app.whenReady().then(() => {
-   if (!app.isDefaultProtocolClient('mailto')) {
-    app.setAsDefaultProtocolClient('mailto');
-  }
+  const exePath = process.execPath
+  const got = app.setAsDefaultProtocolClient('mailto', exePath, [
+    path.resolve(process.argv[1])
+  ])
+  console.log('Protocol set:', got)
+
   const mainWindowManager = WindowManager.getInstance()
   monitorNetworkConnection();
   setupAutoUpdater();
