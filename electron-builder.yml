@@ -17,11 +17,14 @@ win:
   executableName: com.workspacemail
   artifactName: ${name}-${version}-${buildNumber}.${ext}
 nsis:
+  include: build/installer.nsh
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
   artifactName: ${name}-${version}-${buildNumber}.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
-  include: build/installer.nsh
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   artifactName: ${name}-${version}-${buildNumber}-${arch}.${ext}
