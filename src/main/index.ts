@@ -1767,9 +1767,15 @@ function attachAutoUpdateListeners() {
   });
 }
 
-
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  console.log('Mailto link opened:', url)
+})
 // App Initialization
 app.whenReady().then(() => {
+   if (!app.isDefaultProtocolClient('mailto')) {
+    app.setAsDefaultProtocolClient('mailto');
+  }
   const mainWindowManager = WindowManager.getInstance()
   monitorNetworkConnection();
   setupAutoUpdater();

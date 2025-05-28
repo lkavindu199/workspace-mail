@@ -50,3 +50,7 @@ publish:
   url: https://storage.googleapis.com/workspacemail-updates/${os}/${arch}
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
+protocols:
+  - name: mailto
+    schemes:
+      - mailto
