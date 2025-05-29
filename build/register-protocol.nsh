@@ -1,31 +1,29 @@
 !macro customInstall
-  DetailPrint "🚀 Starting Workspace Mail protocol registration..."
+  DetailPrint "🔧 Registering Workspace Mail as mailto: handler (HKCU)"
 
-  DeleteRegKey HKLM "Software\\Clients\\Mail\\WorkspaceMail"
-  DetailPrint "✅ Deleted old Mail client key"
+  ; Setup variables
+  StrCpy $0 "workspace-mail"
+  StrCpy $1 "Workspace Mail"
+  StrCpy $2 "$INSTDIR\\Workspace Mail.exe"
+  StrCpy $3 "$0.mailto"
 
-  DeleteRegKey HKCR "WorkspaceMailURL"
-  DetailPrint "✅ Deleted old Protocol key"
+  ; Clean up old entries
+  DeleteRegKey HKCU "Software\\$0"
+  DeleteRegKey HKCU "Software\\Classes\\$3"
 
-  WriteRegStr HKLM "Software\\Clients\\Mail\\WorkspaceMail" "" "Workspace Mail"
-  DetailPrint "📝 Wrote Clients\\Mail\\WorkspaceMail"
+  ; Register Capabilities (application metadata)
+  WriteRegStr HKCU "Software\\$0\\Capabilities" "ApplicationName" "$1"
+  WriteRegStr HKCU "Software\\$0\\Capabilities" "ApplicationDescription" "$1"
+  WriteRegStr HKCU "Software\\$0\\Capabilities\\URLAssociations" "mailto" "$3"
 
-  WriteRegStr HKLM "Software\\Clients\\Mail\\WorkspaceMail\\Capabilities" "ApplicationDescription" "Electron-based Mail Client"
-  WriteRegStr HKLM "Software\\Clients\\Mail\\WorkspaceMail\\Capabilities" "ApplicationName" "Workspace Mail"
-  WriteRegStr HKLM "Software\\Clients\\Mail\\WorkspaceMail\\Capabilities\\URLAssociations" "mailto" "WorkspaceMailURL"
-  DetailPrint "📝 Wrote Capabilities"
+  ; Register the application in RegisteredApplications
+  WriteRegStr HKCU "Software\\RegisteredApplications" "$1" "Software\\$0\\Capabilities"
 
-  WriteRegStr HKLM "Software\\Clients\\Mail\\WorkspaceMail\\DefaultIcon" "" "$INSTDIR\\Workspace Mail.exe,0"
-  WriteRegStr HKLM "Software\\Clients\\Mail\\WorkspaceMail\\shell\\open\\command" "" '"$INSTDIR\\Workspace Mail.exe" "%1"'
-  DetailPrint "📝 Wrote Command and Icon"
+  ; Register ProgID under Classes
+  WriteRegStr HKCU "Software\\Classes\\$3" "" "URL:MailTo Protocol"
+  WriteRegStr HKCU "Software\\Classes\\$3" "URL Protocol" ""
+  WriteRegStr HKCU "Software\\Classes\\$3\\DefaultIcon" "" "$2,0"
+  WriteRegStr HKCU "Software\\Classes\\$3\\shell\\open\\command" "" '"$2" "%1"'
 
-  WriteRegStr HKLM "Software\\RegisteredApplications" "Workspace Mail" "Software\\Clients\\Mail\\WorkspaceMail\\Capabilities"
-  DetailPrint "📝 Registered in RegisteredApplications"
-
-  WriteRegStr HKCR "WorkspaceMailURL" "" "URL:MailTo Protocol"
-  WriteRegStr HKCR "WorkspaceMailURL" "URL Protocol" ""
-  WriteRegStr HKCR "WorkspaceMailURL\\shell\\open\\command" "" '"$INSTDIR\\Workspace Mail.exe" "%1"'
-  DetailPrint "✅ Completed protocol handler setup"
-
-  DetailPrint "🎉 Registration complete!"
+  DetailPrint "✅ Workspace Mail mailto: registration complete (user-level)"
 !macroend
