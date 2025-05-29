@@ -1773,9 +1773,9 @@ app.on('open-url', (event, url) => {
 })
 // App Initialization
 app.whenReady().then(() => {
-const mailtoArg = process.argv.find(arg => arg.startsWith('mailto:'));
+  const mailtoArg = process.argv.find((arg) => arg.startsWith('mailto:'))
   if (mailtoArg) {
-    console.log('Mailto link (Windows):', mailtoArg);
+    console.log('Mailto link (Windows):', mailtoArg)
   }
 
   const mainWindowManager = WindowManager.getInstance()

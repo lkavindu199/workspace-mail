@@ -1,30 +1,16 @@
 !macro customInstall
-  ; Define protocol and identifiers
-  StrCpy $0 "workspace-mail"
-  StrCpy $1 "Workspace Mail"
-  StrCpy $2 "$INSTDIR\\Workspace Mail.exe"
-  StrCpy $3 "$0.mailto"
+  ; Register mail client in StartMenuInternet
+  WriteRegStr HKLM "Software\Clients\Mail\WorkspaceMail" "" "Workspace Mail"
+  WriteRegStr HKLM "Software\Clients\Mail\WorkspaceMail\Capabilities" "ApplicationDescription" "Electron-based Mail Client"
+  WriteRegStr HKLM "Software\Clients\Mail\WorkspaceMail\Capabilities" "ApplicationName" "Workspace Mail"
+  WriteRegStr HKLM "Software\Clients\Mail\WorkspaceMail\Capabilities\URLAssociations" "mailto" "WorkspaceMailURL"
+  WriteRegStr HKLM "Software\Clients\Mail\WorkspaceMail\DefaultIcon" "" "$INSTDIR\\Workspace Mail.exe,0"
+  WriteRegStr HKLM "Software\Clients\Mail\WorkspaceMail\shell\\open\\command" "" '"$INSTDIR\\Workspace Mail.exe" "%1"'
 
-  ; Register application capabilities
-  WriteRegStr HKCU "Software\$0\Capabilities" "ApplicationName" "$1"
-  WriteRegStr HKCU "Software\$0\Capabilities" "ApplicationDescription" "Electron-based Mail App"
-  WriteRegStr HKCU "Software\$0\Capabilities" "ApplicationIcon" "$2,0"
-  WriteRegStr HKCU "Software\$0\Capabilities\URLAssociations" "mailto" "$3"
+  WriteRegStr HKLM "Software\\RegisteredApplications" "Workspace Mail" "Software\\Clients\\Mail\\WorkspaceMail\\Capabilities"
 
-  ; Register in default apps list
-  WriteRegStr HKCU "Software\RegisteredApplications" "$0" "Software\\$0\\Capabilities"
-
-  ; Set up mailto protocol handler
-  WriteRegStr HKCU "Software\Classes\$3" "" "$1 Mailto Protocol"
-  WriteRegStr HKCU "Software\Classes\$3" "URL Protocol" ""
-  WriteRegStr HKCU "Software\Classes\$3\shell\open\command" "" '"$2" "%1"'
-!macroend
-
-!macro customUnInstall
-  StrCpy $0 "workspace-mail"
-  StrCpy $3 "$0.mailto"
-
-  DeleteRegValue HKCU "Software\RegisteredApplications" "$0"
-  DeleteRegKey HKCU "Software\$0"
-  DeleteRegKey HKCU "Software\Classes\$3"
+  ; Register mailto protocol handler
+  WriteRegStr HKCR "WorkspaceMailURL" "" "URL:MailTo Protocol"
+  WriteRegStr HKCR "WorkspaceMailURL" "URL Protocol" ""
+  WriteRegStr HKCR "WorkspaceMailURL\\shell\\open\\command" "" '"$INSTDIR\\Workspace Mail.exe" "%1"'
 !macroend
