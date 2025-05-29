@@ -1,5 +1,5 @@
 !macro customInstall
-  DetailPrint "🔧 Registering Workspace Mail as mailto: handler (HKCU)"
+  MessageBox MB_OK "🔍 Workspace Mail protocol macro is running!"
 
   ; Setup variables
   StrCpy $0 "workspace-mail"

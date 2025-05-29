@@ -19,7 +19,7 @@ win:
 nsis:
   include: build/register-protocol.nsh
   oneClick: false
-  perMachine: true
+  perMachine: false
   allowToChangeInstallationDirectory: true
   artifactName: ${name}-${version}-${buildNumber}.${ext}
   shortcutName: ${productName}
