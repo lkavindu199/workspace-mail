@@ -83,11 +83,13 @@
       "buildNumber": "19"
     },
     "protocols": [
-  {
-    "name": "Workspace Mail",
-    "schemes": ["mailto"]
-  }
-],
+      {
+        "name": "Workspace Mail",
+        "schemes": [
+          "mailto"
+        ]
+      }
+    ],
     "publish": {
       "provider": "generic",
       "url": "https://storage.googleapis.com/workspacemail-updates/${os}/${arch}"
@@ -123,7 +125,7 @@
       }
     ]
   },
-   "nsis": {
+  "nsis": {
     "include": "build/register-protocol.nsh",
     "oneClick": false,
     "perMachine": false,
