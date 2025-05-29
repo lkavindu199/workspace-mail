@@ -17,7 +17,7 @@ win:
   executableName: com.workspacemail
   artifactName: ${name}-${version}-${buildNumber}.${ext}
 nsis:
-  include: build/register-protocol.nsh
+  include: build/installer.nsh
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
