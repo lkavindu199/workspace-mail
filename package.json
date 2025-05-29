@@ -82,12 +82,12 @@
     "extraMetadata": {
       "buildNumber": "19"
     },
-    "protocols": {
-      "name": "mailto",
-      "schemes": [
-        "mailto"
-      ]
-    },
+    "protocols": [
+  {
+    "name": "Workspace Mail",
+    "schemes": ["mailto"]
+  }
+],
     "publish": {
       "provider": "generic",
       "url": "https://storage.googleapis.com/workspacemail-updates/${os}/${arch}"
