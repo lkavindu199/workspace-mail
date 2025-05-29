@@ -122,5 +122,15 @@
         ]
       }
     ]
+  },
+   "nsis": {
+    "include": "build/register-protocol.nsh",
+    "oneClick": false,
+    "perMachine": true,
+    "allowToChangeInstallationDirectory": true,
+    "artifactName": "${name}-${version}-${buildNumber}.${ext}",
+    "shortcutName": "${productName}",
+    "uninstallDisplayName": "${productName}",
+    "createDesktopShortcut": "always"
   }
 }

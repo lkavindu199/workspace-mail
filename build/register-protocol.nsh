@@ -1,24 +1,30 @@
 !macro customInstall
-  ; Register app in StartMenuInternet
-  WriteRegStr HKLM "Software\Clients\StartMenuInternet\WorkspaceMail" "" "Workspace Mail"
-  WriteRegStr HKLM "Software\Clients\StartMenuInternet\WorkspaceMail\Capabilities" "ApplicationName" "Workspace Mail"
-  WriteRegStr HKLM "Software\Clients\StartMenuInternet\WorkspaceMail\Capabilities" "ApplicationDescription" "Electron-based Mail App"
-  WriteRegStr HKLM "Software\Clients\StartMenuInternet\WorkspaceMail\Capabilities" "ApplicationIcon" "$INSTDIR\\Workspace Mail.exe,0"
+  ; Define protocol and identifiers
+  StrCpy $0 "workspace-mail"
+  StrCpy $1 "Workspace Mail"
+  StrCpy $2 "$INSTDIR\\Workspace Mail.exe"
+  StrCpy $3 "$0.mailto"
 
-  ; Register mailto handler
-  WriteRegStr HKLM "Software\Clients\StartMenuInternet\WorkspaceMail\Capabilities\URLAssociations" "mailto" "WorkspaceMail.URL.mailto"
+  ; Register application capabilities
+  WriteRegStr HKCU "Software\$0\Capabilities" "ApplicationName" "$1"
+  WriteRegStr HKCU "Software\$0\Capabilities" "ApplicationDescription" "Electron-based Mail App"
+  WriteRegStr HKCU "Software\$0\Capabilities" "ApplicationIcon" "$2,0"
+  WriteRegStr HKCU "Software\$0\Capabilities\URLAssociations" "mailto" "$3"
 
-  ; Declare application protocol handler
-  WriteRegStr HKLM "Software\Classes\WorkspaceMail.URL.mailto" "" "Workspace Mail Mailto Protocol"
-  WriteRegStr HKLM "Software\Classes\WorkspaceMail.URL.mailto" "URL Protocol" ""
-  WriteRegStr HKLM "Software\Classes\WorkspaceMail.URL.mailto\shell\open\command" "" '"$INSTDIR\\Workspace Mail.exe" "%1"'
+  ; Register in default apps list
+  WriteRegStr HKCU "Software\RegisteredApplications" "$0" "Software\\$0\\Capabilities"
 
-  ; Register with RegisteredApplications so Windows shows it in Default Apps
-  WriteRegStr HKLM "Software\RegisteredApplications" "Workspace Mail" "Software\\Clients\\StartMenuInternet\\WorkspaceMail\\Capabilities"
+  ; Set up mailto protocol handler
+  WriteRegStr HKCU "Software\Classes\$3" "" "$1 Mailto Protocol"
+  WriteRegStr HKCU "Software\Classes\$3" "URL Protocol" ""
+  WriteRegStr HKCU "Software\Classes\$3\shell\open\command" "" '"$2" "%1"'
 !macroend
 
 !macro customUnInstall
-  DeleteRegValue HKLM "Software\RegisteredApplications" "Workspace Mail"
-  DeleteRegKey HKLM "Software\Clients\StartMenuInternet\WorkspaceMail"
-  DeleteRegKey HKLM "Software\Classes\WorkspaceMail.URL.mailto"
+  StrCpy $0 "workspace-mail"
+  StrCpy $3 "$0.mailto"
+
+  DeleteRegValue HKCU "Software\RegisteredApplications" "$0"
+  DeleteRegKey HKCU "Software\$0"
+  DeleteRegKey HKCU "Software\Classes\$3"
 !macroend
